@@ -1,0 +1,16 @@
+id,name,type,region,production,consumption,reserve_years,export_dependency,price
+OIL_SAU,Saudi Crude Oil,Oil,Saudi Arabia,12,3.5,65,0.85,82.4
+OIL_RUS,Russian Crude Oil,Oil,Russia,10.5,3.2,30,0.75,74.2
+GAS_RUS,Russian Natural Gas,Gas,Russia,638,470,50,0.68,8.5
+GAS_QAT,Qatari LNG,Gas,Middle East,170,45,80,0.9,12.5
+OIL_IRN,Iranian Crude Oil,Oil,Middle East,3.8,1.8,90,0.55,68
+OIL_IRQ,Iraqi Crude Oil,Oil,Middle East,4.4,0.8,70,0.8,76.5
+OIL_USA,US Crude Oil,Oil,USA,13.2,19.8,11,0.15,79.9
+GAS_NOR,Norwegian Natural Gas,Gas,EU,122,4.5,25,0.92,15.2
+ELEC_EU,EU Electricity,Electricity,EU,2800,2900,99,0.05,0.22
+COAL_CHN,Chinese Coal,Coal,China,4500,4700,35,0.02,95
+OIL_VEN,Venezuelan Oil,Oil,Venezuela,0.8,0.3,300,0.65,62
+GAS_USA,US Natural Gas,Gas,USA,1030,990,15,0.12,3.2
+OIL_NSE,North Sea Oil,Oil,EU,1.5,6.2,8,0.2,83.1
+WIND_NOR,Norwegian Wind Energy,Renewable,EU,17,15,99,0.1,0.07
+OIL_TEST_OK,Test Oil OK,Oil,USA,10,5,40,0.5,75

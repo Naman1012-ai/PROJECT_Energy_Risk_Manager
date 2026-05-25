@@ -1,0 +1,6 @@
+CompileFlags:
+  Add:
+    - -xc++
+    - -std=c++17
+    - -D__STRICT_ANSI__
+    - -D__float128=double

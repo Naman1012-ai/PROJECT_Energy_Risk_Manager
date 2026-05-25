@@ -1,0 +1,5 @@
+.env
+*.exe
+backend/build/
+.vscode/
+.DS_Store

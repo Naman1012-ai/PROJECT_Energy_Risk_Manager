@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Energy Risk Monitor — Dashboard</title>
+    <meta name="description" content="Real-time energy risk assessment and analysis dashboard for global energy resources and geopolitical events.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- Leaflet.js for interactive world map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Chart.js for premium analytics visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+    <style>
+        /* Backend connection badge */
+        .backend-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 3px 10px; border-radius: 20px; font-size: 0.65rem;
+            font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+        }
+        .backend-badge.connected {
+            background: rgba(22, 163, 74, 0.08); color: #16A34A; border: 1px solid rgba(22, 163, 74, 0.2);
+        }
+        .backend-badge.loading {
+            background: rgba(217, 119, 6, 0.08); color: #D97706; border: 1px solid rgba(217, 119, 6, 0.2);
+        }
+        .backend-badge.error {
+            background: rgba(220, 38, 38, 0.08); color: #DC2626; border: 1px solid rgba(220, 38, 38, 0.2);
+        }
+        .backend-dot {
+            width: 7px; height: 7px; border-radius: 50%; display: inline-block;
+        }
+        .backend-badge.connected .backend-dot { background: #16A34A; box-shadow: 0 0 6px rgba(22,163,74,0.4); }
+        .backend-badge.loading .backend-dot { background: #D97706; animation: pulse 1.5s infinite; }
+        .backend-badge.error .backend-dot { background: #DC2626; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+        /* Loading spinner */
+        .loading-state {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 1rem; padding: 3rem; color: var(--text-muted); font-size: 0.85rem;
+        }
+        .loading-spinner {
+            width: 32px; height: 32px; border: 3px solid rgba(0,0,0,0.08);
+            border-top-color: #2563EB; border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Error state */
+        .error-state {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 0.75rem; padding: 2rem; color: #DC2626; font-size: 0.85rem; text-align: center;
+        }
+        .retry-btn {
+            padding: 6px 16px; border-radius: 6px; border: 1px solid rgba(37,99,235,0.2);
+            background: rgba(37,99,235,0.08); color: #2563EB; font-size: 0.8rem;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .retry-btn:hover { background: rgba(37,99,235,0.14); }
+    </style>
+</head>
+<body>
+    <!-- Animated background particles -->
+    <div class="bg-particles" id="bgParticles"></div>
+
+    <!-- Top Navigation Bar -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-brand">
+            <div class="brand-icon">
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                    <circle cx="14" cy="14" r="12" stroke="url(#navGrad)" stroke-width="2.5" fill="none"/>
+                    <path d="M9 18 L14 8 L19 18" stroke="url(#navGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    <circle cx="14" cy="14" r="3" fill="url(#navGrad)"/>
+                    <defs><linearGradient id="navGrad" x1="0" y1="0" x2="28" y2="28"><stop stop-color="#2563EB"/><stop offset="1" stop-color="#0891B2"/></linearGradient></defs>
+                </svg>
+            </div>
+            <span class="brand-text">Energy Risk Monitor</span>
+            <span class="brand-badge">LIVE</span>
+        </div>
+        <div class="nav-links">
+            <a href="#dashboard" class="nav-link active" data-section="dashboard">Home</a>
+            <a href="#global-risk-explorer" class="nav-link" data-section="global-risk-explorer">Global Risk Explorer</a>
+            <a href="#country-insights" class="nav-link" data-section="country-insights">Country Insights</a>
+
+            <a href="#trends" class="nav-link" data-section="trends">Trends</a>
+            <a href="#add-event" class="nav-link" data-section="add-event">Add Event</a>
+            <a href="#add-resource" class="nav-link" data-section="add-resource">Add Resource</a>
+        </div>
+        <div class="nav-actions">
+            <div class="search-box" id="searchBox">
+                <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input type="text" id="searchInput" placeholder="Search resources..." autocomplete="off">
+                <div class="search-results" id="searchResults"></div>
+            </div>
+            <button class="btn-export" id="btnExport" title="Export Risk Scores">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+        <!-- ===================== DASHBOARD SECTION ===================== -->
+        <section class="section active" id="dashboard">
+            <!-- Hero Section -->
+            <div class="hero-section">
+                <div class="hero-grid">
+                    <div class="hero-left">
+                        <h1>Global Energy Risk Intelligence Dashboard</h1>
+                        <p>Real-time analytics, risk indexing, and supply chain vulnerability monitoring of global energy resources.</p>
+                        <div class="hero-actions">
+                            <button class="btn-primary" onclick="document.querySelector('[data-section=\'world-map\']').click()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 8 8 12 12 16 16 12 12 8"/></svg>
+                                Explore Risk Map
+                            </button>
+                            <button class="btn-secondary" onclick="document.querySelector('[data-section=\'trends\']').click()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                                View Trends
+                            </button>
+                        </div>
+                    </div>
+                    <div class="hero-right">
+                        <div class="hero-gauge-card">
+                            <div class="hero-gauge-title">Worldwide Risk Score</div>
+                            <div class="hero-gauge-container">
+                                <svg width="160" height="100" viewBox="0 0 160 100">
+                                    <path d="M 10 90 A 70 70 0 0 1 150 90" fill="none" stroke="#E2E8F0" stroke-width="12" stroke-linecap="round"/>
+                                    <path id="heroGaugePath" d="M 10 90 A 70 70 0 0 1 150 90" fill="none" stroke="var(--accent-blue)" stroke-width="12" stroke-linecap="round" stroke-dasharray="220" stroke-dashoffset="220"/>
+                                </svg>
+                                <div class="hero-gauge-score" id="heroRiskScore">0.0</div>
+                            </div>
+                            <span class="hero-gauge-label" id="heroRiskLevel" style="background:var(--accent-blue-dim); color:var(--accent-blue);">Normal</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card stat-glow-blue" id="statResources">
+                    <div class="stat-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-value" data-target="0">0</span>
+                        <span class="stat-label">Energy Resources</span>
+                    </div>
+                </div>
+                <div class="stat-card stat-glow-purple" id="statEvents">
+                    <div class="stat-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-value" data-target="0">0</span>
+                        <span class="stat-label">Active Events</span>
+                    </div>
+                </div>
+                <div class="stat-card stat-glow-amber" id="statRiskIndex">
+                    <div class="stat-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-value" data-target="0">0</span>
+                        <span class="stat-label">Global Risk Index</span>
+                    </div>
+                </div>
+                <div class="stat-card stat-glow-red" id="statHighRisk">
+                    <div class="stat-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-value" data-target="0">0</span>
+                        <span class="stat-label">High Risk Resources</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Interactive World Risk Map -->
+            <div class="section-header" style="margin-top: 2rem; margin-bottom: 1rem;">
+                <h2 class="card-title" style="font-size: 1.15rem;">Global Energy Risk Map</h2>
+                <p style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.25rem;">Click any country to generate risk insights · Color-coded by composite risk level</p>
+            </div>
+            <div class="card" id="homeMapCard" style="margin-bottom: 2rem; overflow: hidden;">
+                <div id="homeWorldMap" style="width: 100%; height: 480px; border-radius: var(--radius-md); position: relative; z-index: 1;"></div>
+                <div class="map-legend" id="homeMapLegend" style="padding: 0.75rem 1rem;">
+                    <div class="legend-item"><span class="legend-dot" style="background:#16A34A"></span>Low Risk (0–33)</div>
+                    <div class="legend-item"><span class="legend-dot" style="background:#EAB308"></span>Medium Risk (34–55)</div>
+                    <div class="legend-item"><span class="legend-dot" style="background:#EA580C"></span>High Risk (56–75)</div>
+                    <div class="legend-item"><span class="legend-dot" style="background:#DC2626"></span>Critical Risk (76–100)</div>
+                </div>
+            </div>
+
+            <!-- Resource Risk Overview Grid -->
+            <div class="section-header" style="margin-top: 2rem; margin-bottom: 1rem;">
+                <h2 class="card-title" style="font-size: 1.15rem;">Key Resources Risk Matrix</h2>
+            </div>
+            <div class="resource-risk-grid" id="resourceRiskGrid">
+                <!-- Filled dynamically for key resource types -->
+            </div>
+
+            <!-- News Grid -->
+            <div class="section-header" style="margin-top: 2rem; margin-bottom: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                    <div>
+                        <h2 class="card-title" style="font-size: 1.15rem;">Latest Geopolitical Energy News</h2>
+                        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">Live threat intelligence from active events, analytical insights, and user-reported incidents · Click any card for details</p>
+                    </div>
+                    <span class="card-badge badge-amber" id="newsSourceBadge" style="font-size: 0.65rem;">Live Feed</span>
+                </div>
+            </div>
+            <div class="news-grid" id="newsGrid">
+                <!-- Filled dynamically from multiple sources -->
+            </div>
+
+        </section>
+
+        <!-- ===================== GLOBAL RISK EXPLORER SECTION ===================== -->
+        <section class="section" id="global-risk-explorer">
+            <div class="section-header">
+                <h1 class="section-title">Global Risk Explorer</h1>
+                <p class="section-subtitle">Unified multidimensional assessment of global energy security, assets registry, and regional vulnerabilities</p>
+            </div>
+
+            <!-- ExplorerFilters Component -->
+            <div class="card explorer-filters-card" style="margin-bottom: 1.5rem;">
+                <div class="explorer-filters-grid">
+                    <div class="filter-group">
+                        <label for="explorerFilterCountry">Country / Region</label>
+                        <input type="text" id="explorerFilterCountry" placeholder="e.g. United States, Russia..." class="form-input">
+                    </div>
+                    <div class="filter-group">
+                        <label for="explorerFilterRegion">Risk Engine Region</label>
+                        <select id="explorerFilterRegion" class="form-select">
+                            <option value="all">All Regions</option>
+                            <option value="Saudi Arabia">Saudi Arabia</option>
+                            <option value="Russia">Russia</option>
+                            <option value="USA">USA</option>
+                            <option value="Australia">Australia</option>
+                            <option value="Kazakhstan">Kazakhstan</option>
+                            <option value="China">China</option>
+                            <option value="Middle East">Middle East</option>
+                            <option value="EU">EU</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="explorerFilterContinent">Continent</label>
+                        <select id="explorerFilterContinent" class="form-select">
+                            <option value="all">All Continents</option>
+                            <option value="Asia">Asia</option>
+                            <option value="Europe">Europe</option>
+                            <option value="North America">North America</option>
+                            <option value="South America">South America</option>
+                            <option value="Africa">Africa</option>
+                            <option value="Oceania">Oceania</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="explorerFilterResourceType">Resource Type</label>
+                        <select id="explorerFilterResourceType" class="form-select">
+                            <option value="all">All Types</option>
+                            <option value="Oil">Oil</option>
+                            <option value="Gas">Gas</option>
+                            <option value="Lithium">Lithium</option>
+                            <option value="Uranium">Uranium</option>
+                            <option value="Rare Earth Metals">Rare Earth Metals</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="explorerFilterRisk">Risk Level</label>
+                        <select id="explorerFilterRisk" class="form-select">
+                            <option value="all">All Levels</option>
+                            <option value="critical">Critical (>75)</option>
+                            <option value="high">High (55-75)</option>
+                            <option value="medium">Medium (33-55)</option>
+                            <option value="low">Low (≤33)</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Year Range</label>
+                        <div style="display:flex; gap:0.5rem; align-items:center;">
+                            <input type="number" id="explorerMinYear" placeholder="Min" class="form-input" style="width:75px;">
+                            <span>-</span>
+                            <input type="number" id="explorerMaxYear" placeholder="Max" class="form-input" style="width:75px;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RiskRankingPanel Component -->
+            <div class="explorer-ranking-grid" style="margin-bottom: 2rem;">
+                <div class="card ranking-card">
+                    <div class="card-header">
+                        <h2 class="card-title">Highest Risk Regions</h2>
+                        <span class="card-badge badge-red">Critical Areas</span>
+                    </div>
+                    <div id="explorerHighRiskRegions" class="ranking-list">
+                        <!-- Filled dynamically -->
+                    </div>
+                </div>
+                <div class="card ranking-card">
+                    <div class="card-header">
+                        <h2 class="card-title">Highest Risk Resources</h2>
+                        <span class="card-badge badge-red">Critical Assets</span>
+                    </div>
+                    <div id="explorerHighRiskResources" class="ranking-list">
+                        <!-- Filled dynamically -->
+                    </div>
+                </div>
+                <div class="card ranking-card">
+                    <div class="card-header">
+                        <h2 class="card-title">Most Vulnerable Energy Sectors</h2>
+                        <span class="card-badge badge-amber">Sector Risk</span>
+                    </div>
+                    <div id="explorerVulnerableSectors" class="ranking-list">
+                        <!-- Filled dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row -->
+            <div class="charts-row" style="margin-bottom: 2rem;">
+                <!-- Donut Chart -->
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <h2 class="card-title">Risk Level Breakdown</h2>
+                        <span class="card-badge">Risk Classification</span>
+                    </div>
+                    <div class="donut-chart-container">
+                        <canvas id="riskDonutChart" width="260" height="260"></canvas>
+                        <div class="donut-center">
+                            <span class="donut-value" id="donutCenterValue">0</span>
+                            <span class="donut-label">Resources</span>
+                        </div>
+                    </div>
+                    <div class="donut-legend" id="donutLegend"></div>
+                </div>
+
+                <!-- Bar Chart -->
+                <div class="card chart-card chart-card-wide">
+                    <div class="card-header">
+                        <h2 class="card-title">Resource Risk Index comparison</h2>
+                        <span class="card-badge">All Monitored Resources</span>
+                    </div>
+                    <div class="bar-chart-container" id="barChartContainer"></div>
+                </div>
+            </div>
+
+            <!-- Top Risks + Active Events Row -->
+            <div class="bottom-row" style="margin-bottom: 2rem;">
+                <!-- Top 5 Risks -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Critical Watchlist (Highest Risk)</h2>
+                        <span class="card-badge badge-red">Watch List</span>
+                    </div>
+                    <div class="top-risks-list" id="topRisksList"></div>
+                </div>
+
+                <!-- Recent Events -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Active Geopolitical Threat Feed</h2>
+                        <span class="card-badge badge-amber">Live Feed</span>
+                    </div>
+                    <div class="events-feed" id="eventsFeed"></div>
+                </div>
+            </div>
+
+            <!-- Two Columns/Rows for Tables -->
+            <div class="explorer-tables-layout">
+                <!-- Region Comparison Table Component -->
+                <div class="card explorer-table-card">
+                    <div class="card-header">
+                        <h2 class="card-title">Region Comparisons & Security Index</h2>
+                        <span class="card-badge">Geopolitical Assessment</span>
+                    </div>
+                    <div class="resources-table-wrapper">
+                        <table class="resources-table" id="regionComparisonTable">
+                            <thead>
+                                <tr>
+                                    <th>Country/Region</th>
+                                    <th>Continent</th>
+                                    <th>Composite Score</th>
+                                    <th>Risk Level</th>
+                                    <th>Affected Resource</th>
+                                    <th>Active Events</th>
+                                    <th>Period</th>
+                                </tr>
+                            </thead>
+                            <tbody id="regionComparisonTableBody">
+                                <!-- Filled dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Asset Registry Table Component -->
+                <div class="card explorer-table-card" style="margin-top: 1.5rem;">
+                    <div class="card-header">
+                        <h2 class="card-title">Asset Registry & Resource Indicators</h2>
+                        <span class="card-badge">Monitored Assets</span>
+                    </div>
+                    <div class="resources-table-wrapper">
+                        <table class="resources-table" id="assetRegistryTable">
+                            <thead>
+                                <tr>
+                                    <th>Resource Name</th>
+                                    <th>Resource Type</th>
+                                    <th>Country/Region</th>
+                                    <th>Production Capacity</th>
+                                    <th>Consumption Level</th>
+                                    <th>Self-Sufficiency</th>
+                                    <th>Risk Score</th>
+                                    <th>Unit</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="assetRegistryTableBody">
+                                <!-- Filled dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DetailDrawer Component (Right side drawer overlay) -->
+            <div class="detail-drawer-overlay" id="detailDrawerOverlay"></div>
+            <div class="detail-drawer" id="detailDrawer">
+                <div class="drawer-header">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <h2 class="drawer-title" id="drawerTitle">Resource/Region Details</h2>
+                        <button class="drawer-close" id="btnDrawerClose">&times;</button>
+                    </div>
+                    <p class="drawer-subtitle" id="drawerSubtitle">Detailed Intelligence Briefing</p>
+                </div>
+                <div class="drawer-content" id="drawerContent">
+                    <!-- Filled dynamically when a row is clicked -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ===================== COUNTRY INSIGHTS SECTION ===================== -->
+        <section class="section" id="country-insights">
+            <div class="section-header">
+                <h1 class="section-title">Country & Region Insights</h1>
+                <p class="section-subtitle">Real-time Geopolitical Energy Security Risk analysis and intelligence reporting</p>
+            </div>
+
+            <!-- Country Search Card -->
+            <div class="card" style="margin-bottom: 1.5rem;">
+                <div class="card-header">
+                    <h2 class="card-title">Geopolitical Risk Analysis Workspace</h2>
+                    <span class="card-badge badge-blue">Intelligence Analysis</span>
+                </div>
+                <div style="display: flex; gap: 1rem; align-items: flex-end; margin-top: 1rem; flex-wrap: wrap;">
+                    <div class="form-group" style="flex: 1; min-width: 280px; position: relative;">
+                        <label for="geminiSearchInput">Search Country or Region</label>
+                        <input type="text" id="geminiSearchInput" placeholder="e.g. Germany, Japan, Saudi Arabia, Ukraine..." autocomplete="off">
+                        <div class="search-results" id="geminiSearchSuggestions" style="width: 100%; top: 100%;"></div>
+                    </div>
+                    <button class="btn-primary" id="btnAnalyzeCountry" style="height: 42px; padding: 0 1.5rem;">
+                        Analyze Region
+                    </button>
+                    <button class="btn-secondary" id="btnRefreshCountry" style="height: 42px; display: none;">
+                        Refresh Insights
+                    </button>
+                </div>
+            </div>
+
+            <!-- Status Indicator Area -->
+            <div id="geminiStatusArea" style="display: none; margin-bottom: 1.5rem;">
+                <div class="form-success-alert" id="geminiSuccessAlert" style="display: none; background: rgba(37,99,235,0.05); color: var(--accent-blue); border: 1px solid rgba(37,99,235,0.2);">
+                    Analyzing region data...
+                </div>
+                <div class="form-success-alert" id="firebaseSaveAlert" style="display: none; background: var(--accent-green-dim); color: var(--accent-green); border: 1px solid rgba(22, 163, 74, 0.2);">
+                    Analysis saved successfully
+                </div>
+                <div class="form-success-alert" id="geminiErrorAlert" style="display: none; background: rgba(220,38,38,0.05); color: var(--accent-red); border: 1px solid rgba(220,38,38,0.2); text-align: left;">
+                    Error processing request.
+                </div>
+            </div>
+
+            <!-- Main Results Workspace -->
+            <div id="geminiResultsWorkspace" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <span class="level-badge" id="geminiCacheBadge" style="font-size: 0.72rem; font-weight: 700;">Status</span>
+                        <span style="font-size: 0.75rem; color: var(--text-muted);" id="geminiTimestamp"></span>
+                    </div>
+                </div>
+
+                <div class="predictions-layout">
+                    <!-- Left Column: Risk profile -->
+                    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <!-- Risk Summary Card -->
+                        <div class="card">
+                            <div class="card-header" style="border-bottom: none; padding-bottom: 0;">
+                                <h2 class="card-title">Risk Level & Executive Summary</h2>
+                                <span class="level-badge" id="geminiRiskLevelBadge" style="font-size:0.8rem; font-weight:700;">CRITICAL</span>
+                            </div>
+                            <p class="news-desc" id="geminiSummaryText" style="-webkit-line-clamp: initial; line-clamp: initial; font-size:0.9rem; line-height:1.6; margin-top:1rem; color: var(--text-primary);">
+                                summary text...
+                            </p>
+                        </div>
+
+                        <!-- Detailed Geopolitical Risk Assessments -->
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+                            <!-- Energy Risks Card -->
+                            <div class="card" style="border-left: 3px solid var(--accent-amber); padding: 1.25rem;">
+                                <div class="card-header" style="padding: 0 0 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 0;">
+                                    <h3 class="card-title" style="font-size: 0.88rem; font-weight: 700;">Energy & Resource Risks</h3>
+                                    <span class="card-badge badge-amber" style="font-size: 0.65rem; padding: 1px 6px;">Sector Impact</span>
+                                </div>
+                                <p id="geminiEnergyRisks" style="font-size:0.8rem; line-height:1.55; margin-top:0.6rem; color: var(--text-secondary);">
+                                    Direct sector vulnerability details...
+                                </p>
+                            </div>
+
+                            <!-- Trade & Supply-Chain Risks Card -->
+                            <div class="card" style="border-left: 3px solid var(--risk-high); padding: 1.25rem;">
+                                <div class="card-header" style="padding: 0 0 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 0;">
+                                    <h3 class="card-title" style="font-size: 0.88rem; font-weight: 700;">Trade & Supply Chain</h3>
+                                    <span class="card-badge badge-red" style="font-size: 0.65rem; padding: 1px 6px;">Corridor Threats</span>
+                                </div>
+                                <p id="geminiTradeRisks" style="font-size:0.8rem; line-height:1.55; margin-top:0.6rem; color: var(--text-secondary);">
+                                    Trade corridors and supply disruptions...
+                                </p>
+                            </div>
+
+                            <!-- Infrastructure Risks Card -->
+                            <div class="card" style="border-left: 3px solid var(--accent-blue); padding: 1.25rem;">
+                                <div class="card-header" style="padding: 0 0 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 0;">
+                                    <h3 class="card-title" style="font-size: 0.88rem; font-weight: 700;">Infrastructure Security</h3>
+                                    <span class="card-badge badge-blue" style="font-size: 0.65rem; padding: 1px 6px;">Asset Threat</span>
+                                </div>
+                                <p id="geminiInfrastructureRisks" style="font-size:0.8rem; line-height:1.55; margin-top:0.6rem; color: var(--text-secondary);">
+                                    Physical asset and grid vulnerability assessments...
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Affected Resources -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">Affected Energy Sectors</h2>
+                                <span class="card-badge">Vulnerable Sectors</span>
+                            </div>
+                            <div id="geminiAffectedResourcesChips" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem;">
+                                <!-- Chips dynamically inserted -->
+                            </div>
+                        </div>
+
+                        <!-- Import/Export Vulnerabilities -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">Import & Export Vulnerabilities</h2>
+                                <span class="card-badge">Trade Security</span>
+                            </div>
+                            <ul id="geminiVulnerabilitiesList" style="margin-top: 0.75rem; padding-left: 1.25rem; font-size: 0.85rem; line-height: 1.7; color: var(--text-secondary);">
+                                <!-- Bullets dynamically inserted -->
+                            </ul>
+                        </div>
+
+                        <!-- Strategic Recommendations -->
+                        <div class="card" style="border-left: 4px solid var(--accent-blue);">
+                            <div class="card-header">
+                                <h2 class="card-title">Mitigation & Policy Recommendations</h2>
+                                <span class="card-badge badge-blue">Mitigation Plan</span>
+                            </div>
+                            <p id="geminiRecommendationText" style="font-size:0.88rem; line-height:1.6; margin-top:0.75rem; color: var(--text-primary); font-style: italic;">
+                                recommendations...
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Events & Prices -->
+                    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <!-- Fuel Price Impact -->
+                        <div class="card" id="geminiPriceImpactCard">
+                            <div class="card-header">
+                                <h2 class="card-title">Fuel Price Impact Projection</h2>
+                                <span class="level-badge" id="geminiPriceImpactBadge">HIGH</span>
+                            </div>
+                            <p style="font-size: 0.85rem; line-height: 1.5; margin-top: 0.75rem;" id="geminiPriceImpactSummary">
+                                details...
+                            </p>
+                            <!-- Market Price Index section -->
+                            <div id="geminiMarketPriceContainer" style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 0.25rem;">
+                                <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 600;">Market Price Index</div>
+                                <div style="display: flex; align-items: baseline; gap: 0.5rem;">
+                                    <span id="geminiMarketPriceValue" style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);">$0.00</span>
+                                    <span id="geminiMarketPriceLabel" style="font-size: 0.8rem; color: var(--text-secondary);">Price data not available</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Geopolitical Event Feed -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">Key Active Threat Vectors</h2>
+                                <span class="card-badge badge-amber">Active Threat Events</span>
+                            </div>
+                            <div id="geminiEventsFeed" class="events-feed" style="margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.75rem;">
+                                <!-- Dynamic events list -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Welcome/Placeholder Workspace -->
+            <div id="geminiPlaceholderWorkspace" class="card" style="padding: 4rem 2rem; text-align: center;">
+                <div style="font-size: 3rem; margin-bottom: 1.5rem;">💡</div>
+                <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem;">Begin Geopolitical Country Analysis</h2>
+                <p style="font-size: 0.88rem; color: var(--text-secondary); max-width: 500px; margin: 0 auto 1.5rem; line-height: 1.5;">
+                    Enter a country or region name above to generate real-time geopolitical energy-risk intelligence reports.
+                </p>
+            </div>
+        </section>
+
+        <!-- ===================== HISTORICAL TRENDS SECTION ===================== -->
+        <section class="section" id="trends">
+            <div class="section-header">
+                <h1 class="section-title">Historical Trends</h1>
+                <p class="section-subtitle">Long-term energy consumption, fuel price shifts, and transition dynamics</p>
+            </div>
+            
+            <div class="card" style="margin-bottom: 1.5rem;">
+                <div class="card-header">
+                    <h2 class="card-title">Trend Filters & Parameters</h2>
+                    <span class="card-badge badge-blue">Analytics Engine</span>
+                </div>
+                <div style="display: flex; gap: 1rem; align-items: flex-end; margin-top: 1rem; flex-wrap: wrap;">
+                    <div class="form-group" style="flex: 1; min-width: 200px;">
+                        <label for="trendsCountrySelect">Select Country</label>
+                        <select id="trendsCountrySelect" style="width: 100%;" required>
+                            <!-- Dynamically loaded -->
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1; min-width: 200px;">
+                        <label for="trendsEnergyTypeSelect">Energy Type</label>
+                        <select id="trendsEnergyTypeSelect" style="width: 100%;" required>
+                            <option value="Oil">Oil</option>
+                            <option value="Gas">Gas</option>
+                            <option value="LNG">LNG</option>
+                            <option value="Coal">Coal</option>
+                            <option value="Renewables">Renewables</option>
+                            <option value="Electricity">Electricity</option>
+                            <option value="Nuclear">Nuclear</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1; min-width: 120px;">
+                        <label for="trendsYearMin">Min Year</label>
+                        <input type="number" id="trendsYearMin" value="1900" min="1900" max="2026" style="width: 100%;">
+                    </div>
+                    <div class="form-group" style="flex: 1; min-width: 120px;">
+                        <label for="trendsYearMax">Max Year</label>
+                        <input type="number" id="trendsYearMax" value="2026" min="1900" max="2026" style="width: 100%;">
+                    </div>
+                    <button type="button" class="btn-submit" id="btnAnalyzeTrends" style="padding: 0.75rem 1.5rem; height: fit-content; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                        <span>Run Analytics Engine</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Analytics Dashboard Layout -->
+            <div class="predictions-layout" style="margin-top: 1.5rem;">
+                <div style="display: flex; flex-direction: column; gap: 1.5rem; flex: 2; min-width: 320px;">
+                    <!-- Line Chart: Energy Consumption -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title" id="trendsConsTitle">Historical Consumption Pattern</h2>
+                            <span class="card-badge">Raw + Moving Average</span>
+                        </div>
+                        <div style="position: relative; height: 260px; margin-top: 1rem; width: 100%;">
+                            <canvas id="consumptionChart"></canvas>
+                        </div>
+                        <div class="chart-info-strip" id="trendsConsInfoStrip">
+                            <div class="info-item"><span class="info-label">X-Axis:</span><span class="info-value">Year</span></div>
+                            <div class="info-item"><span class="info-label">Y-Axis:</span><span class="info-value" id="trendsConsYLabel">Consumption</span></div>
+                            <div class="info-item"><span class="info-label">Unit:</span><span class="info-value" id="trendsConsUnit">—</span></div>
+                            <div class="info-item"><span class="info-label">Type:</span><span class="info-value">Raw + 3-Year Moving Average</span></div>
+
+                        </div>
+                        <div class="chart-legend-strip">
+                            <div class="legend-entry"><span class="legend-swatch" style="background:#2563EB;"></span> Raw observed consumption values</div>
+                            <div class="legend-entry"><span class="legend-swatch dashed" style="color:#7C3AED;"></span> 3-Year Simple Moving Average (smoothed trend)</div>
+                        </div>
+                        <div class="chart-insight-box" id="trendsConsInsight">
+                            <span class="insight-icon">📊</span>
+                            <span class="insight-text">Run the analytics engine to generate trend interpretation for this chart.</span>
+                        </div>
+                        <div class="chart-updated-stamp" id="trendsConsTimestamp"></div>
+                    </div>
+
+                    <!-- Line Chart: Fuel Prices -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title" id="trendsPriceTitle">Fuel Price Timeline</h2>
+                            <span class="card-badge">Raw Observation</span>
+                        </div>
+                        <div style="position: relative; height: 260px; margin-top: 1rem; width: 100%;">
+                            <canvas id="fuelPricesChart"></canvas>
+                        </div>
+                        <div class="chart-info-strip" id="trendsPriceInfoStrip">
+                            <div class="info-item"><span class="info-label">X-Axis:</span><span class="info-value">Year</span></div>
+                            <div class="info-item"><span class="info-label">Y-Axis:</span><span class="info-value" id="trendsPriceYLabel">Fuel Price</span></div>
+                            <div class="info-item"><span class="info-label">Unit:</span><span class="info-value" id="trendsPriceUnit">—</span></div>
+                            <div class="info-item"><span class="info-label">Type:</span><span class="info-value">Raw market observation</span></div>
+
+                        </div>
+                        <div class="chart-legend-strip">
+                            <div class="legend-entry"><span class="legend-swatch" style="background:#D97706;"></span> Observed fuel price across available years</div>
+                        </div>
+                        <div class="chart-insight-box" id="trendsPriceInsight">
+                            <span class="insight-icon">💰</span>
+                            <span class="insight-text">Run the analytics engine to generate price trend interpretation.</span>
+                        </div>
+                        <div class="chart-updated-stamp" id="trendsPriceTimestamp"></div>
+                    </div>
+
+                    <!-- Bar Chart: Resource Comparison -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title" id="trendsResourceTitle">Resource Balance Profile</h2>
+                            <span class="card-badge">Normalized %</span>
+                        </div>
+                        <div style="position: relative; height: 260px; margin-top: 1rem; width: 100%;">
+                            <canvas id="resourcesBarChart"></canvas>
+                        </div>
+                        <div class="chart-info-strip" id="trendsResourceInfoStrip">
+                            <div class="info-item"><span class="info-label">X-Axis:</span><span class="info-value">Energy Resource</span></div>
+                            <div class="info-item"><span class="info-label">Y-Axis:</span><span class="info-value">Share of Total Energy</span></div>
+                            <div class="info-item"><span class="info-label">Unit:</span><span class="info-value">Percentage (%)</span></div>
+                            <div class="info-item"><span class="info-label">Type:</span><span class="info-value">Normalized proportional share</span></div>
+
+                        </div>
+                        <div class="chart-insight-box" id="trendsResourceInsight">
+                            <span class="insight-icon">⚡</span>
+                            <span class="insight-text">Run the analytics engine to generate resource mix analysis.</span>
+                        </div>
+                        <div class="chart-updated-stamp" id="trendsResourceTimestamp"></div>
+                    </div>
+                </div>
+
+                <!-- Right Side: Trend Summary Panel -->
+                <div class="simulation-results-panel" style="flex: 1; min-width: 280px; display: flex; flex-direction: column; gap: 1.5rem;">
+                    <div class="card sim-delta-card" style="background: linear-gradient(135deg, rgba(37,99,235,0.06), rgba(37,99,235,0.12)); border: 1px solid rgba(37,99,235,0.2);">
+                        <div class="sim-delta-title">Overall Growth Rate</div>
+                        <div class="sim-delta-value" id="trendsGrowthRate" style="color: var(--accent-blue);">--%</div>
+                        <div class="sim-delta-indicator" id="trendsGrowthLabel" style="color: var(--text-muted);">Year-over-Year Trend</div>
+                    </div>
+
+                    <div class="card sim-delta-card" style="background: linear-gradient(135deg, rgba(217,119,6,0.06), rgba(217,119,6,0.12)); border: 1px solid rgba(217,119,6,0.2);">
+                        <div class="sim-delta-title">Fuel Price Change</div>
+                        <div class="sim-delta-value" id="trendsPriceChange" style="color: var(--accent-amber);">--%</div>
+                        <div class="sim-delta-indicator" id="trendsPriceLabel" style="color: var(--text-muted);">Overall Period Delta</div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Trend Summary & Insights</h2>
+                            <span class="card-badge badge-green">Live Data</span>
+                        </div>
+                        <div class="analysis-content" style="margin-top: 1rem; font-size: 0.9rem; line-height: 1.6;">
+                            <div class="analysis-bubble" id="trendsSummaryText" style="padding: 1rem; border-radius: 8px; background: var(--bg-hover); border-left: 4px solid var(--accent-blue); margin-bottom: 1rem;">
+                                Select a country and run the analytics engine to generate insights.
+                            </div>
+                            <div style="display:flex; flex-direction:column; gap:0.75rem; font-size:0.85rem;">
+                                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:0.5rem;">
+                                    <span>Energy Transition Speed:</span>
+                                    <strong id="trendsTransitionSpeed" style="color:var(--text-main);">Steady</strong>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:0.5rem;">
+                                    <span>Country vs Region Risk:</span>
+                                    <strong id="trendsComparison" style="color:var(--text-main);">Balanced</strong>
+                                </div>
+                                <div style="display:flex; justify-content:space-between;">
+                                    <span>Last Generated:</span>
+                                    <span id="trendsGeneratedAt" style="color:var(--text-muted);">Never</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+
+
+
+
+        <!-- ===================== ADD EVENT SECTION ===================== -->
+        <section class="section" id="add-event">
+            <div class="section-header">
+                <h1 class="section-title">Add Geopolitical & Energy Event</h1>
+                <p class="section-subtitle">Report new geopolitical threats, natural disasters, or infrastructure disruptions affecting energy security</p>
+            </div>
+            <div class="form-container">
+                <div class="form-success-alert" id="addEventSuccessAlert" style="display:none; background: var(--accent-green-dim); color: var(--accent-green); border: 1px solid rgba(22, 163, 74, 0.2);">
+                    Geopolitical event successfully submitted!
+                </div>
+                <div class="form-success-alert" id="addEventErrorAlert" style="display:none; background: rgba(220,38,38,0.05); color: var(--accent-red); border: 1px solid rgba(220,38,38,0.2); text-align: left;">
+                    Error submitting event.
+                </div>
+                <form class="form-card" id="addEventForm" novalidate>
+                    <div class="form-grid">
+                        <!-- Event Title -->
+                        <div class="form-group form-grid-full">
+                            <label for="addEventTitle">Event Title <span style="color:var(--accent-red);">*</span></label>
+                            <input type="text" id="addEventTitle" placeholder="e.g., North Sea Pipeline Leak Incident" required>
+                            <span class="field-error" id="errorEventTitle"></span>
+                        </div>
+
+                        <!-- Event Type -->
+                        <div class="form-group">
+                            <label for="addEventType">Event Type <span style="color:var(--accent-red);">*</span></label>
+                            <select id="addEventType" required>
+                                <option value="">-- Select Event Type --</option>
+                                <option value="Geopolitical">Geopolitical</option>
+                                <option value="Natural Disaster">Natural Disaster</option>
+                                <option value="Cyberattack">Cyberattack</option>
+                                <option value="Infrastructure Disruption">Infrastructure Disruption</option>
+                                <option value="Trade Restriction">Trade Restriction</option>
+                                <option value="Other">Other</option>
+                            </select>
+                            <span class="field-error" id="errorEventType"></span>
+                        </div>
+
+                        <!-- Affected Region / Country -->
+                        <div class="form-group">
+                            <label for="addEventRegion">Affected Region / Country <span style="color:var(--accent-red);">*</span></label>
+                            <input type="text" id="addEventRegion" placeholder="e.g., Norway" required>
+                            <span class="field-error" id="errorEventRegion"></span>
+                        </div>
+
+                        <!-- Affected Energy Resource -->
+                        <div class="form-group">
+                            <label for="addEventResource">Affected Energy Resource <span style="color:var(--accent-red);">*</span></label>
+                            <select id="addEventResource" required>
+                                <option value="">-- Select Energy Resource --</option>
+                                <option value="Oil">Oil</option>
+                                <option value="Gas">Gas</option>
+                                <option value="Coal">Coal</option>
+                                <option value="Renewables">Renewables</option>
+                                <option value="Nuclear">Nuclear</option>
+                                <option value="Electricity Grid">Electricity Grid</option>
+                                <option value="Multiple">Multiple</option>
+                            </select>
+                            <span class="field-error" id="errorEventResource"></span>
+                        </div>
+
+                        <!-- Severity Level -->
+                        <div class="form-group">
+                            <label for="addEventSeverity">Severity Level <span style="color:var(--accent-red);">*</span></label>
+                            <select id="addEventSeverity" required>
+                                <option value="">-- Select Severity --</option>
+                                <option value="Low">Low</option>
+                                <option value="Medium">Medium</option>
+                                <option value="High">High</option>
+                                <option value="Critical">Critical</option>
+                            </select>
+                            <span class="field-error" id="errorEventSeverity"></span>
+                        </div>
+
+                        <!-- Event Date -->
+                        <div class="form-group">
+                            <label for="addEventDate">Event Date <span style="color:var(--accent-red);">*</span></label>
+                            <input type="date" id="addEventDate" required>
+                            <span class="field-error" id="errorEventDate"></span>
+                        </div>
+
+                        <!-- Source URL -->
+                        <div class="form-group">
+                            <label for="addEventSourceUrl">Source URL <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;">(Optional)</span></label>
+                            <input type="url" id="addEventSourceUrl" placeholder="e.g., https://reuters.com/news/article">
+                            <span class="field-error" id="errorEventSourceUrl"></span>
+                        </div>
+
+                        <!-- Submitted By -->
+                        <div class="form-group">
+                            <label for="addEventSubmittedBy">Submitted By <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;">(Optional)</span></label>
+                            <input type="text" id="addEventSubmittedBy" placeholder="e.g., Naman Sharma">
+                        </div>
+
+                        <!-- Event Description -->
+                        <div class="form-group form-grid-full">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.25rem;">
+                                <label for="addEventDescription" style="margin-bottom:0;">Event Description <span style="color:var(--accent-red);">*</span></label>
+                                <span class="char-counter" id="descCharCounter">0 / 30 min chars</span>
+                            </div>
+                            <textarea id="addEventDescription" rows="4" placeholder="Describe the incident in detail (minimum 30 characters)..." required></textarea>
+                            <span class="field-error" id="errorEventDescription"></span>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-submit" id="btnSubmitAddEvent">Submit Risk Event</button>
+                </form>
+            </div>
+
+            <!-- Live Submitted Events Log -->
+            <div style="max-width: 900px; margin: 0 auto;">
+                <h2 class="section-title" style="margin-top: 3.5rem; margin-bottom: 0.5rem; font-size: 1.35rem; text-align: left;">Submitted Energy Security Events Log</h2>
+                <p class="section-subtitle" style="text-align: left; margin-bottom: 1.5rem; font-size: 0.85rem;">Real-time feed of logged security threats and supply disruptions globally.</p>
+                <div class="empty-state" id="submittedEventsEmptyState" style="display:none; background: var(--bg-card); border: 1px dashed var(--border-color); padding: 3rem; text-align: center; border-radius: var(--radius-md); color: var(--text-muted); font-family: var(--font-sans);">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 0.75rem; opacity: 0.6;"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    <div>No submitted events logged yet. Be the first to report an energy security event!</div>
+                </div>
+                <div class="event-grid" id="submittedEventsGrid"></div>
+            </div>
+        </section>
+
+        <!-- ===================== ADD RESOURCE SECTION ===================== -->
+        <section class="section" id="add-resource">
+            <div class="section-header">
+                <h1 class="section-title">Register Energy Asset</h1>
+                <p class="section-subtitle">Introduce a new resource asset or regional source to monitor within the risk grid</p>
+            </div>
+            <div class="form-container">
+                <div class="form-success-alert" id="resourceFormAlert">Asset successfully registered! Analytics models refreshed.</div>
+                <form class="form-card" id="resourceForm">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="resId">Asset ID Code</label>
+                            <input type="text" id="resId" placeholder="e.g., OIL_MIDEAST" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="resName">Resource Name</label>
+                            <input type="text" id="resName" placeholder="e.g., Arabian Light Crude" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="resType">Resource Category</label>
+                            <select id="resType" required>
+                                <option value="Oil">Oil</option>
+                                <option value="Gas">Gas</option>
+                                <option value="Coal">Coal</option>
+                                <option value="Electricity">Electricity</option>
+                                <option value="Renewable">Renewable</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="resRegion">Region / Producer Country</label>
+                            <input type="text" id="resRegion" placeholder="e.g., Saudi Arabia" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="resProd">Daily Production (Million Boe/d)</label>
+                            <input type="number" id="resProd" min="0" step="0.1" value="10.0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="resCons">Daily Consumption (Million Boe/d)</label>
+                            <input type="number" id="resCons" min="0" step="0.1" value="4.0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="resReserves">Proven Reserves (Years left)</label>
+                            <input type="number" id="resReserves" min="0" step="1" value="50" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="resExport">Export Dependency (0.0 to 1.0)</label>
+                            <input type="number" id="resExport" min="0" max="1.0" step="0.05" value="0.8" required>
+                        </div>
+                        <div class="form-group form-grid-full">
+                            <label for="resPrice">Base Unit Price (USD)</label>
+                            <input type="number" id="resPrice" min="0" step="0.01" value="75.00" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-submit">Register Energy Resource</button>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <!-- Global Resource Detail Modal -->
+    <div class="modal-overlay" id="resourceModal">
+        <div class="modal-content">
+            <button class="modal-close" id="modalClose">&times;</button>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <!-- News Event Detail Modal -->
+    <div class="modal-overlay" id="newsEventModal">
+        <div class="modal-content news-modal-content">
+            <button class="modal-close" id="newsModalClose">&times;</button>
+            <div id="newsModalBody"></div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>Global Energy Risk Monitor System &copy; 2026 — Geopolitical Energy Security Intelligence Portal</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>

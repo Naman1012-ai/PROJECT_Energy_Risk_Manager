@@ -1,0 +1,10 @@
+CompileFlags:
+  Add:
+    - -xc++
+    - -std=c++11
+    - --target=i686-w64-mingw32
+    - -D__float128=double
+
+QueryDriver:
+  - C:\MinGW\bin\g++*
+  - C:\MinGW\bin\gcc*

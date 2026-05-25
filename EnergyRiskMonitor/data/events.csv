@@ -1,0 +1,13 @@
+id,title,type,region,intensity,supply_impact,is_active
+E001,Russia-Ukraine War,War,Russia,0.85,0.3,1
+E002,US-Iran Sanctions,Sanctions,Middle East,0.7,0.15,1
+E003,OPEC Production Cut,ProductionCut,Saudi Arabia,0.5,0.08,1
+E004,Libyan Political Instability,Instability,Global,0.4,0.05,1
+E005,Red Sea Trade Disruption,TradeRestriction,Middle East,0.65,0.12,1
+E006,Venezuela Economic Crisis,Instability,Venezuela,0.55,0.1,1
+E007,EU Energy Crisis,TradeRestriction,EU,0.6,0.2,1
+E008,China Coal Import Restrictions,Sanctions,China,0.45,0.05,1
+E009,Iraq Kurdistan Tensions,Instability,Middle East,0.35,0.04,1
+E010,Norway Gas Pipeline Sabotage,War,EU,0.8,0.25,0
+E011,Suez Canal Transit Delay,TradeRestriction,Middle East,0.8,0.25,0
+E012,Verification Embargo,Sanctions,USA,0.6,0.25,0
