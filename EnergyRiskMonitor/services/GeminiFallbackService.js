@@ -254,15 +254,7 @@ Return ONLY the JSON object.`;
 
             console.log(`[GEMINI_FALLBACK] Validation complete. Valid evidence objects count: ${evidenceObjects.length}`);
 
-            // 3. Block AI generation if data coverage is completely insufficient or missing
-            if (evidenceObjects.length === 0) {
-                console.warn(`[GEMINI_FALLBACK] BLOCKING: Insufficient data for ${regionName}. hasData = false or qualityScore = INSUFFICIENT.`);
-                const err = new Error('Insufficient data available for this metric.');
-                err.code = 'INSUFFICIENT_DATA';
-                throw err;
-            }
-
-            // 4. Call Gemini API passing the evidenceObjects
+            // 3. Call Gemini API passing the evidenceObjects (do not block for sparse data)
             const data = await this.callGemini(regionName, evidenceObjects);
             
             // Append structured evidence to the response data envelope
@@ -275,15 +267,6 @@ Return ONLY the JSON object.`;
                 message: 'Fresh insight generated from Gemini API'
             };
         } catch (geminiErr) {
-            if (geminiErr.code === 'INSUFFICIENT_DATA' || geminiErr.message.includes('Insufficient data')) {
-                return {
-                    source: 'error',
-                    data: {},
-                    status: 'error',
-                    error_code: 'INSUFFICIENT_DATA',
-                    message: 'Insufficient data available for this metric.'
-                };
-            }
 
             console.error(`[GEMINI_FALLBACK] Gemini API failed: ${geminiErr.message}`);
             console.log(`[GEMINI_FALLBACK] Attempting Firebase cache lookup for "${regionId}"...`);

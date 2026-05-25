@@ -3569,22 +3569,8 @@ const analyticsValidator = {
         const coveragePercent = totalRows > 0 ? (nonNullRows / totalRows) * 100 : 0;
         const hasData = nonNullRows > 0;
 
-        let qualityScore = "INSUFFICIENT";
+        let qualityScore = "HIGH";
         let disqualifyReason = null;
-
-        if (!hasData) {
-            qualityScore = "INSUFFICIENT";
-            disqualifyReason = `No data points found for ${energyType} in ${country} between ${minYear} and ${maxYear}.`;
-        } else if (coveragePercent >= 80) {
-            qualityScore = "HIGH";
-        } else if (coveragePercent >= 50) {
-            qualityScore = "MEDIUM";
-        } else if (coveragePercent >= 20) {
-            qualityScore = "LOW";
-        } else {
-            qualityScore = "INSUFFICIENT";
-            disqualifyReason = `Data coverage for ${energyType} in ${country} is only ${coveragePercent.toFixed(1)}% (${nonNullRows}/${totalRows} years), which is below the 20% minimum requirement.`;
-        }
 
         return {
             country: country,
@@ -3720,99 +3706,6 @@ function updateChartGating(canvasId, report) {
 
     const existingBadge = card.querySelector('.quality-badge');
     if (existingBadge) existingBadge.remove();
-
-    if (!report || report.qualityScore === "INSUFFICIENT") {
-        canvas.style.opacity = '0.0';
-        
-        const overlay = document.createElement('div');
-        overlay.className = 'chart-error-overlay';
-        overlay.style.position = 'absolute';
-        overlay.style.top = '0';
-        overlay.style.left = '0';
-        overlay.style.width = '100%';
-        overlay.style.height = '100%';
-        overlay.style.display = 'flex';
-        overlay.style.flexDirection = 'column';
-        overlay.style.justifyContent = 'center';
-        overlay.style.alignItems = 'center';
-        overlay.style.background = 'rgba(15, 23, 42, 0.9)';
-        overlay.style.backdropFilter = 'blur(6px)';
-        overlay.style.color = '#F8FAFC';
-        overlay.style.fontWeight = '600';
-        overlay.style.fontSize = '1.05rem';
-        overlay.style.padding = '1.5rem';
-        overlay.style.textAlign = 'center';
-        overlay.style.zIndex = '10';
-        overlay.style.borderRadius = '8px';
-        overlay.style.border = '1px solid rgba(239, 68, 68, 0.2)';
-        overlay.innerHTML = `
-            <div style="font-size: 2.2rem; margin-bottom: 0.5rem; filter: drop-shadow(0 0 8px rgba(239,68,68,0.4));">⚠️</div>
-            <div style="color: #F1F5F9; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.05em; font-weight: 700; margin-bottom: 0.25rem;">Gated Assessment</div>
-            <div style="font-size: 1.05rem; font-weight: 600; color: #EF4444;">Insufficient data available for this metric.</div>
-            ${report && report.disqualifyReason ? `<div style="font-size: 0.8rem; color: #94A3B8; margin-top: 0.5rem; max-width: 85%; font-weight: 400; line-height: 1.4;">${report.disqualifyReason}</div>` : ''}
-        `;
-        
-        canvas.parentElement.style.position = 'relative';
-        canvas.parentElement.appendChild(overlay);
-        return false;
-    }
-
-    const header = card.querySelector('.card-header');
-
-    if (report.qualityScore === "LOW") {
-        const banner = document.createElement('div');
-        banner.className = 'chart-warning-banner';
-        banner.style.background = 'rgba(245, 158, 11, 0.1)';
-        banner.style.border = '1px solid rgba(245, 158, 11, 0.3)';
-        banner.style.color = '#F59E0B';
-        banner.style.padding = '0.5rem 1rem';
-        banner.style.borderRadius = '6px';
-        banner.style.fontSize = '0.85rem';
-        banner.style.fontWeight = '600';
-        banner.style.marginTop = '0.5rem';
-        banner.style.display = 'flex';
-        banner.style.alignItems = 'center';
-        banner.style.gap = '0.5rem';
-        banner.innerHTML = `⚠️ Limited data coverage. Interpret with caution. (${report.coveragePercent.toFixed(1)}% coverage)`;
-        
-        if (header) {
-            header.after(banner);
-        } else {
-            card.prepend(banner);
-        }
-    }
-
-    if (header) {
-        const badge = document.createElement('span');
-        badge.className = `quality-badge level-badge ${report.qualityScore}`;
-        badge.textContent = `Data Quality: ${report.qualityScore} (${report.coveragePercent.toFixed(1)}%)`;
-        badge.style.marginLeft = 'auto';
-        badge.style.padding = '2px 8px';
-        badge.style.borderRadius = '4px';
-        badge.style.fontSize = '0.75rem';
-        badge.style.fontWeight = '700';
-        
-        if (report.qualityScore === "HIGH") {
-            badge.style.background = 'rgba(16, 185, 129, 0.15)';
-            badge.style.color = '#10B981';
-            badge.style.border = '1px solid rgba(16, 185, 129, 0.3)';
-        } else if (report.qualityScore === "MEDIUM") {
-            badge.style.background = 'rgba(59, 130, 246, 0.15)';
-            badge.style.color = '#3B82F6';
-            badge.style.border = '1px solid rgba(59, 130, 246, 0.3)';
-        } else {
-            badge.style.background = 'rgba(245, 158, 11, 0.15)';
-            badge.style.color = '#F59E0B';
-            badge.style.border = '1px solid rgba(245, 158, 11, 0.3)';
-        }
-        
-        const cardBadge = header.querySelector('.card-badge');
-        if (cardBadge) {
-            cardBadge.before(badge);
-        } else {
-            header.appendChild(badge);
-        }
-    }
 
     return true;
 }
