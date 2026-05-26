@@ -175,6 +175,7 @@ function buildCountryAvailability() {
     const geminiFallback = new GeminiFallbackService(GEMINI_API_KEY, httpsRequest, firebaseRepo);
     regionInsightController = new RegionInsightController(firebaseRepo, geminiFallback);
     console.log('[SERVICES] Initialized: RegionNormalizer, FirebaseRepo, GeminiFallback, RegionInsightController');
+    loadDefaultEventsFromCsv();
     buildCountryAvailability();
 })();
 
@@ -266,118 +267,167 @@ const DEFAULT_RESOURCES = [
     { id: "WIND_NOR", name: "Norwegian Wind Energy", type: "Renewable", region: "EU", production: 17.0, consumption: 15.0, reserve_years: 99.0, export_dependency: 0.10, price: 0.07 }
 ];
 
-const DEFAULT_EVENTS = [
-    {
-        id: "E001",
-        title: "Russia-Ukraine War",
-        type: "War",
-        region: "Russia",
-        intensity: 0.85,
-        supply_impact: 0.30,
-        is_active: 1,
-        description: "Ongoing target campaigns against high-voltage transmission lines and distribution substations, resulting in rotating blackouts and supply bottlenecks.",
-        date: "2026-05-25T23:50:51Z"
-    },
-    {
-        id: "E002",
-        title: "US-Iran Sanctions",
-        type: "Sanctions",
-        region: "Middle East",
-        intensity: 0.70,
-        supply_impact: 0.15,
-        is_active: 1,
-        description: "Multilateral trade restrictions targeting crude oil, gas, and coal exports, limiting market access and forcing steep price discounts.",
-        date: "2026-05-25T20:50:51Z"
-    },
-    {
-        id: "E003",
-        title: "OPEC Production Cut",
-        type: "ProductionCut",
-        region: "Saudi Arabia",
-        intensity: 0.50,
-        supply_impact: 0.08,
-        is_active: 1,
-        description: "Voluntary supply cuts designed to offset expanding production in non-OPEC countries and support global price floors.",
-        date: "2026-05-25T01:50:51Z"
-    },
-    {
-        id: "E004",
-        title: "Libyan Political Instability",
-        type: "Instability",
-        region: "Global",
-        intensity: 0.40,
-        supply_impact: 0.05,
-        is_active: 1,
-        description: "Political unrest and competing governmental claims in eastern Libya trigger temporary shutdowns at key eastern export terminals.",
-        date: "2026-05-23T01:50:51Z"
-    },
-    {
-        id: "E005",
-        title: "Red Sea Trade Disruption",
-        type: "TradeRestriction",
-        region: "Middle East",
-        intensity: 0.65,
-        supply_impact: 0.12,
-        is_active: 1,
-        description: "Asymmetric drone and missile attacks targeting cargo vessels, causing rerouting of energy tankers around the Cape of Good Hope.",
-        date: "2026-05-21T01:50:51Z"
-    },
-    {
-        id: "E006",
-        title: "Venezuela Economic Crisis",
-        type: "Instability",
-        region: "Venezuela",
-        intensity: 0.55,
-        supply_impact: 0.10,
-        is_active: 1,
-        description: "Severe domestic crisis continues to hamper state-run PDVSA's oil production, leading to refinery outages and lack of critical investment.",
-        date: "2026-05-19T01:50:51Z"
-    },
-    {
-        id: "E007",
-        title: "EU Energy Crisis",
-        type: "TradeRestriction",
-        region: "EU",
-        intensity: 0.60,
-        supply_impact: 0.20,
-        is_active: 1,
-        description: "High volatility and supply constraints in regional gas networks, combined with power import limitations, placing immense stress on retail pricing.",
-        date: "2026-05-12T01:50:51Z"
-    },
-    {
-        id: "E008",
-        title: "China Coal Import Restrictions",
-        type: "Sanctions",
-        region: "China",
-        intensity: 0.45,
-        supply_impact: 0.05,
-        is_active: 1,
-        description: "Informal import restrictions and tariff adjustments on thermal coal, aiming to support domestic production and manage emissions targets.",
-        date: "2026-05-05T01:50:51Z"
-    },
-    {
-        id: "E009",
-        title: "Iraq Kurdistan Tensions",
-        type: "Instability",
-        region: "Middle East",
-        intensity: 0.35,
-        supply_impact: 0.04,
-        is_active: 1,
-        description: "Geopolitical disputes over export pipelines between Baghdad and Erbil, leading to suspended pipeline flows and legal friction.",
-        date: "2026-04-26T01:50:51Z"
-    },
-    {
-        id: "E010",
-        title: "Norway Gas Pipeline Sabotage",
-        type: "War",
-        region: "EU",
-        intensity: 0.80,
-        supply_impact: 0.25,
-        is_active: 0,
-        description: "Underwater explosions causing significant physical damage to gas pipelines and subsea cables, triggering heightened military patrols.",
-        date: "2026-03-26T01:50:51Z"
+let DEFAULT_EVENTS = [];
+
+function parseCSVLines(filePath) {
+    if (!fs.existsSync(filePath)) return [];
+    const content = fs.readFileSync(filePath, 'utf8');
+    const rows = [];
+    let currentRow = [];
+    let currentField = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < content.length; i++) {
+        const char = content[i];
+        const nextChar = content[i + 1];
+        
+        if (char === '"') {
+            if (inQuotes && nextChar === '"') {
+                currentField += '"';
+                i++; // skip next quote
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (char === ',' && !inQuotes) {
+            currentRow.push(currentField);
+            currentField = '';
+        } else if ((char === '\n' || char === '\r') && !inQuotes) {
+            if (char === '\r' && nextChar === '\n') {
+                i++;
+            }
+            currentRow.push(currentField);
+            rows.push(currentRow);
+            currentRow = [];
+            currentField = '';
+        } else {
+            currentField += char;
+        }
     }
-];
+    if (currentField || currentRow.length > 0) {
+        currentRow.push(currentField);
+        rows.push(currentRow);
+    }
+    return rows.filter(r => r.length > 0 && r.some(cell => cell.trim() !== ''));
+}
+
+function deriveTitle(desc) {
+    if (!desc) return '';
+    const words = desc.trim().split(/\s+/).slice(0, 6);
+    return words.map(w => {
+        if (w.length === 0) return '';
+        return w.charAt(0).toUpperCase() + w.slice(1);
+    }).join(' ');
+}
+
+function deriveRegion(description) {
+    if (!description) return "Global";
+    const desc = description.toLowerCase();
+    if (desc.includes("russia") || desc.includes("ukraine")) {
+        return "Eastern Europe";
+    }
+    if (desc.includes("iran") || desc.includes("hormuz") ||
+        desc.includes("saudi") || desc.includes("aramco") ||
+        desc.includes("yemen") || desc.includes("opec") ||
+        desc.includes("israel") || desc.includes("hamas") ||
+        desc.includes("red sea") || desc.includes("suez") ||
+        desc.includes("qatar")) {
+        return "Middle East";
+    }
+    if (desc.includes("libya")) {
+        return "North Africa";
+    }
+    if (desc.includes("china")) {
+        return "Asia Pacific";
+    }
+    if (desc.includes("us") || desc.includes("american") || desc.includes("wti")) {
+        return "North America";
+    }
+    return "Global";
+}
+
+function loadDefaultEventsFromCsv() {
+    try {
+        const timelinePath = path.join(__dirname, '../data/geopolitical_events_timeline.csv');
+        const pricePath = path.join(__dirname, '../data/oil_geopolitics_dataset_2010_2026.csv');
+        
+        if (!fs.existsSync(timelinePath)) {
+            console.error('[LOAD DEFAULT EVENTS] timeline CSV does not exist!');
+            return;
+        }
+
+        const timelineRows = parseCSVLines(timelinePath);
+        if (timelineRows.length <= 1) return;
+        
+        const header = timelineRows[0];
+        const dateIdx = header.indexOf('date');
+        const typeIdx = header.indexOf('event_type');
+        const descIdx = header.indexOf('event_description');
+        const sevIdx = header.indexOf('event_severity');
+
+        const priceMap = new Map();
+        if (fs.existsSync(pricePath)) {
+            const priceRows = parseCSVLines(pricePath);
+            if (priceRows.length > 1) {
+                const pHeader = priceRows[0];
+                const pDateIdx = pHeader.indexOf('date');
+                const pBrentIdx = pHeader.indexOf('brent_price');
+                const pFlagIdx = pHeader.indexOf('event_flag');
+                
+                for (let i = 1; i < priceRows.length; i++) {
+                    const row = priceRows[i];
+                    if (row.length <= Math.max(pDateIdx, pBrentIdx, pFlagIdx)) continue;
+                    const flag = parseInt(row[pFlagIdx]) || 0;
+                    if (flag === 1) {
+                        const date = row[pDateIdx];
+                        const brent = parseFloat(row[pBrentIdx]) || null;
+                        if (date && brent) {
+                            priceMap.set(date.trim(), brent);
+                        }
+                    }
+                }
+            }
+        }
+
+        const eventsList = [];
+        for (let i = 1; i < timelineRows.length; i++) {
+            const row = timelineRows[i];
+            if (row.length <= Math.max(dateIdx, typeIdx, descIdx, sevIdx)) continue;
+            
+            const date = row[dateIdx].trim();
+            const type = row[typeIdx].trim();
+            const desc = row[descIdx].trim();
+            const severity = parseInt(row[sevIdx]) || 6;
+            
+            const id = "EVT_" + i.toString().padStart(3, '0');
+            const title = deriveTitle(desc);
+            const region = deriveRegion(desc);
+            const is_active = (date >= "2023-01-01") ? 1 : 0;
+            const brentPrice = priceMap.get(date) || null;
+            
+            eventsList.push({
+                id,
+                title,
+                type,
+                event_type: type,
+                description: desc,
+                severity,
+                date,
+                is_active,
+                region,
+                source: "Kaggle Geopolitical Events Timeline",
+                intensity: severity / 10.0,
+                supply_impact: severity * 0.03,
+                brent_price_at_event: brentPrice
+            });
+        }
+        
+        DEFAULT_EVENTS = eventsList;
+        console.log(`[LOAD DEFAULT EVENTS] Loaded ${DEFAULT_EVENTS.length} events from CSV dataset.`);
+    } catch (err) {
+        console.error('[LOAD DEFAULT EVENTS ERROR]', err.message);
+    }
+}
+
 
 // ---- Firebase CSV Sync Orchestrator ----
 async function ensureDataSync() {
@@ -605,6 +655,9 @@ function validateGeminiResponse(data, region) {
 // Helper to parse the fuel prices CSV and get the latest price for a country
 function getLatestPriceForCountry(countryName) {
     try {
+        if (!countryName) {
+            return { price: null, label: "Price data not available" };
+        }
         const filePath = path.join(__dirname, '../data/Global Fuel Prices (2020-2026).csv');
         if (!fs.existsSync(filePath)) {
             return { price: null, label: "Price data not available" };
@@ -1153,6 +1206,95 @@ const server = http.createServer(async (req, res) => {
                     console.error('[SUBMITTED_EVENTS_GET_ERROR] Firebase read failed:', err.message);
                     res.writeHead(500);
                     res.end(JSON.stringify({ success: false, message: `Failed to retrieve events from database: ${err.message}` }));
+                }
+                return;
+            }
+
+            // ---- Get Geopolitical Events from CSV Dataset (GET) ----
+            if (pathname === '/api/events/dataset' && req.method === 'GET') {
+                try {
+                    const timelinePath = path.join(__dirname, '../data/geopolitical_events_timeline.csv');
+                    const pricePath = path.join(__dirname, '../data/oil_geopolitics_dataset_2010_2026.csv');
+                    
+                    if (!fs.existsSync(timelinePath)) {
+                        res.writeHead(404);
+                        res.end(JSON.stringify({ success: false, message: 'Timeline dataset not found' }));
+                        return;
+                    }
+                    
+                    const timelineRows = parseCSVLines(timelinePath);
+                    if (timelineRows.length <= 1) {
+                        res.writeHead(200);
+                        res.end(JSON.stringify([]));
+                        return;
+                    }
+                    
+                    const header = timelineRows[0];
+                    const dateIdx = header.indexOf('date');
+                    const typeIdx = header.indexOf('event_type');
+                    const descIdx = header.indexOf('event_description');
+                    const sevIdx = header.indexOf('event_severity');
+                    
+                    const priceMap = new Map();
+                    if (fs.existsSync(pricePath)) {
+                        const priceRows = parseCSVLines(pricePath);
+                        if (priceRows.length > 1) {
+                            const pHeader = priceRows[0];
+                            const pDateIdx = pHeader.indexOf('date');
+                            const pBrentIdx = pHeader.indexOf('brent_price');
+                            const pFlagIdx = pHeader.indexOf('event_flag');
+                            
+                            for (let i = 1; i < priceRows.length; i++) {
+                                const row = priceRows[i];
+                                if (row.length <= Math.max(pDateIdx, pBrentIdx, pFlagIdx)) continue;
+                                const flag = parseInt(row[pFlagIdx]) || 0;
+                                if (flag === 1) {
+                                    const date = row[pDateIdx];
+                                    const brent = parseFloat(row[pBrentIdx]) || null;
+                                    if (date && brent) {
+                                        priceMap.set(date.trim(), brent);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    const eventsList = [];
+                    for (let i = 1; i < timelineRows.length; i++) {
+                        const row = timelineRows[i];
+                        if (row.length <= Math.max(dateIdx, typeIdx, descIdx, sevIdx)) continue;
+                        
+                        const date = row[dateIdx].trim();
+                        const type = row[typeIdx].trim();
+                        const desc = row[descIdx].trim();
+                        const severity = parseInt(row[sevIdx]) || 6;
+                        
+                        const id = "EVT_" + i.toString().padStart(3, '0');
+                        const title = deriveTitle(desc);
+                        const region = deriveRegion(desc);
+                        const is_active = (date >= "2023-01-01") ? 1 : 0;
+                        const brentPrice = priceMap.get(date) || null;
+                        
+                        eventsList.push({
+                            id,
+                            title,
+                            event_type: type,
+                            type, // keep both for safety
+                            description: desc,
+                            severity,
+                            date,
+                            is_active,
+                            region,
+                            source: "Kaggle Geopolitical Events Timeline",
+                            brent_price_at_event: brentPrice
+                        });
+                    }
+                    
+                    res.writeHead(200);
+                    res.end(JSON.stringify(eventsList));
+                } catch (err) {
+                    res.writeHead(500);
+                    res.end(JSON.stringify({ success: false, error: err.message }));
                 }
                 return;
             }

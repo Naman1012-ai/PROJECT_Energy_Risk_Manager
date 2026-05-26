@@ -88,6 +88,7 @@
 
             <a href="#trends" class="nav-link" data-section="trends">Trends</a>
             <a href="#add-event" class="nav-link" data-section="add-event">Add Event</a>
+            <a href="#all-events" class="nav-link" data-section="all-events">All Events</a>
             <a href="#add-resource" class="nav-link" data-section="add-resource">Add Resource</a>
         </div>
         <div class="nav-actions">
@@ -206,12 +207,18 @@
 
             <!-- News Grid -->
             <div class="section-header" style="margin-top: 2rem; margin-bottom: 1rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; width: 100%;">
                     <div>
                         <h2 class="card-title" style="font-size: 1.15rem;">Latest Geopolitical Energy News</h2>
                         <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">Live threat intelligence from active events, analytical insights, and user-reported incidents · Click any card for details</p>
                     </div>
-                    <span class="card-badge badge-amber" id="newsSourceBadge" style="font-size: 0.65rem;">Live Feed</span>
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span class="card-badge badge-amber" id="newsSourceBadge" style="font-size: 0.65rem;">Live Feed</span>
+                        <a href="#all-events" class="btn-secondary" id="btnViewAllEvents" style="font-size: 0.72rem; padding: 0.35rem 0.75rem; text-decoration: none; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.25rem;">
+                            <span>View All Events</span>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                        </a>
+                    </div>
                 </div>
             </div>
             <div class="news-grid" id="newsGrid">
@@ -913,6 +920,43 @@
             </div>
         </section>
 
+        <!-- ===================== ALL EVENTS SECTION ===================== -->
+        <section class="section" id="all-events">
+            <div class="section-header">
+                <h1 class="section-title">All Geopolitical Events</h1>
+                <p class="section-subtitle">Comprehensive timeline of geopolitical events and oil market disruptions since 2010</p>
+            </div>
+
+            <!-- Filters Component -->
+            <div class="card" style="padding: 1.25rem; margin-bottom: 1.5rem;">
+                <div style="display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;">
+                    <div style="display: flex; flex-direction: column; gap: 0.25rem; min-width: 200px;">
+                        <label for="filterAllEventsType" style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Event Type</label>
+                        <select id="filterAllEventsType" class="form-select" style="padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-color); background: #fff; width: 100%;">
+                            <option value="all">All Types</option>
+                        </select>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 0.25rem; min-width: 200px;">
+                        <label for="filterAllEventsSeverity" style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Min Severity</label>
+                        <select id="filterAllEventsSeverity" class="form-select" style="padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-color); background: #fff; width: 100%;">
+                            <option value="all">All Severities</option>
+                            <option value="10">Critical (10)</option>
+                            <option value="9">High (9+)</option>
+                            <option value="8">Warning (8+)</option>
+                            <option value="7">Elevated (7+)</option>
+                            <option value="6">Monitor (6+)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Events Grid -->
+            <div class="news-grid" id="allEventsGrid">
+                <!-- Filled dynamically -->
+            </div>
+        </section>
+
         <!-- ===================== ADD RESOURCE SECTION ===================== -->
         <section class="section" id="add-resource">
             <div class="section-header">
@@ -987,11 +1031,6 @@
             <div id="newsModalBody"></div>
         </div>
     </div>
-
-    <!-- Footer -->
-    <footer class="footer">
-        <p>Global Energy Risk Monitor System &copy; 2026 — Geopolitical Energy Security Intelligence Portal</p>
-    </footer>
 
     <script src="app.js"></script>
 </body>

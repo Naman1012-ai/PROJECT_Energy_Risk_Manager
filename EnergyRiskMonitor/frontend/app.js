@@ -616,7 +616,9 @@ let state = {
     events: [],         // Geopolitical threat events
     regions: [],        // Cached region statistics
     selectedRegion: 'Middle East', // Active map inspection region
-    activeSection: 'dashboard'     // Current navigation view
+    activeSection: 'dashboard',     // Current navigation view
+    datasetEvents: [],   // Geopolitical events from Kaggle CSV dataset
+    userSubmittedEvents: [] // Geopolitical events from user reports (Firebase)
 };
 
 // ============================================================================
@@ -711,13 +713,18 @@ async function initAppState() {
         }
         
         // Parallel requests to build local state
-        const [dash, res, evs, regions, analysis] = await Promise.all([
+        const [dash, res, evs, regions, analysis, datasetEvs, userEvs] = await Promise.all([
             fetchFromBackend('/api/dashboard'),
             fetchFromBackend('/api/resources'),
             fetchFromBackend('/api/events'),
             fetchFromBackend('/api/regions'),
-            fetchFromBackend('/api/analysis')
+            fetchFromBackend('/api/analysis'),
+            fetch('/api/events/dataset').then(r => r.json()).catch(err => { console.error(err); return []; }),
+            fetch('/api/submitted-events').then(r => r.json()).catch(err => { console.error(err); return { success: false, events: [] }; })
         ]);
+
+        state.datasetEvents = Array.isArray(datasetEvs) ? datasetEvs : [];
+        state.userSubmittedEvents = (userEvs && userEvs.success && Array.isArray(userEvs.events)) ? userEvs.events : [];
 
         // Map events
         state.events = evs.events.map((e, index) => ({
@@ -1418,6 +1425,27 @@ function getResourceIcon(type) {
 // Global cache for news event objects (for detail modal lookup)
 let _newsEventsCache = [];
 
+function formatEventDate(dateStr) {
+    if (!dateStr) return 'Date unknown';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric'
+    });
+}
+
+function mapSeverityToLabel(severity) {
+    const num = parseInt(severity);
+    if (num === 10) return 'CRITICAL';
+    if (num === 9) return 'HIGH';
+    if (num === 8) return 'WARNING';
+    if (num === 7) return 'ELEVATED';
+    if (num === 6) return 'MONITOR';
+    return 'MONITOR';
+}
+
 function renderGeopoliticalNews() {
     const grid = document.getElementById('newsGrid');
     if (!grid) return;
@@ -1425,15 +1453,53 @@ function renderGeopoliticalNews() {
     // ── Aggregate events from all available sources ──
     const allNewsItems = [];
 
+    // Select top 5 dataset events
+    const sortedDatasetEvents = [...state.datasetEvents].sort((a, b) => {
+        const severityDiff = (b.severity || 0) - (a.severity || 0);
+        if (severityDiff !== 0) return severityDiff;
+        return new Date(b.date) - new Date(a.date);
+    });
+    const top5DatasetEvents = sortedDatasetEvents.slice(0, 5);
+
+    top5DatasetEvents.forEach(e => {
+        let sevClass = 'stable';
+        let sevLabel = 'MONITOR';
+        if (e.severity === 10) { sevClass = 'critical'; sevLabel = 'CRITICAL'; }
+        else if (e.severity === 9) { sevClass = 'critical'; sevLabel = 'HIGH'; }
+        else if (e.severity === 8) { sevClass = 'warning'; sevLabel = 'WARNING'; }
+        else if (e.severity === 7) { sevClass = 'warning'; sevLabel = 'ELEVATED'; }
+        else if (e.severity === 6) { sevClass = 'stable'; sevLabel = 'MONITOR'; }
+        
+        allNewsItems.push({
+            id: e.id,
+            title: e.title,
+            type: e.event_type || e.type,
+            event_type: e.event_type || e.type,
+            region: e.region,
+            severity: sevClass,
+            severityLabel: sevLabel,
+            numericSeverity: e.severity,
+            source: 'dataset',
+            sourceLabel: 'DATASET',
+            date: e.date,
+            description: e.description,
+            brent_price_at_event: e.brent_price_at_event,
+            affected_resources: [e.event_type || 'Energy Assets'],
+            expected_impact: `Kaggle Dataset threat alert for ${e.region}. Severity: ${e.severity}.`
+        });
+    });
+
     // Source 1: Active C++ engine events (from state.events)
+    // Exclude any C++ engine events that are duplicates of the top 5 dataset events
     const activeEvs = state.events.filter(e => e.is_active);
     activeEvs.forEach((e, index) => {
-        // Find affected resources for this event's region
+        const isDuplicateOfTop5 = top5DatasetEvents.some(ds => ds.title.toLowerCase() === e.title.toLowerCase() || ds.id === e.id);
+        if (isDuplicateOfTop5) return;
+
         const affectedResources = state.resources
             .filter(r => r.region.toLowerCase() === e.region.toLowerCase())
             .map(r => r.name);
 
-        // Related risks from other events in same region
         const relatedRisks = activeEvs
             .filter(o => o.id !== e.id && o.region === e.region)
             .map(o => o.title);
@@ -1442,14 +1508,16 @@ function renderGeopoliticalNews() {
             id: e.id,
             title: e.title,
             type: e.type,
+            event_type: e.type,
             region: e.region,
             intensity: e.intensity,
             supply_impact: e.supply_impact,
             severity: e.intensity > 0.7 ? 'critical' : (e.intensity > 0.4 ? 'warning' : 'stable'),
             severityLabel: e.intensity > 0.7 ? 'CRITICAL' : (e.intensity > 0.4 ? 'WARNING' : 'STABLE'),
             source: 'engine',
-            sourceLabel: 'System',
+            sourceLabel: 'SYSTEM',
             timestamp: e.date || e.createdAt || null,
+            date: e.date || e.createdAt || '',
             description: e.description || 'No description available for this event.',
             affected_resources: affectedResources.length > 0 ? affectedResources : [e.type || 'Energy Assets'],
             expected_impact: `Supply disruption potential of ${(e.supply_impact * 100).toFixed(0)}% across ${e.region} energy corridors. ` +
@@ -1460,15 +1528,9 @@ function renderGeopoliticalNews() {
     });
 
     // Source 2: Cached Gemini AI insights (from last country analysis)
-    // Check if any Gemini results have been displayed and extract their events
     const geminiEvFeed = document.getElementById('geminiEventsFeed');
     if (geminiEvFeed && geminiEvFeed.children.length > 0 && !geminiEvFeed.textContent.includes('No active')) {
-        // Try to extract region from the workspace
-        const regionBadge = document.getElementById('geminiCacheBadge');
-        const summaryEl = document.getElementById('geminiSummaryText');
         const regionName = document.querySelector('#geminiSearchInput')?.value || 'Analyzed Region';
-
-        // Look at the gemini events feed DOM to extract rendered events
         const feedItems = geminiEvFeed.querySelectorAll('.gemini-event-item');
         feedItems.forEach((item, idx) => {
             const title = item.querySelector('div[style*="font-weight: 700"]')?.textContent || `Gemini Threat #${idx + 1}`;
@@ -1481,13 +1543,13 @@ function renderGeopoliticalNews() {
             const sevMap = { 'critical': 'critical', 'high': 'critical', 'medium': 'warning', 'low': 'stable' };
             const sevLabelMap = { 'critical': 'CRITICAL', 'high': 'HIGH', 'medium': 'WARNING', 'low': 'STABLE' };
 
-            // Avoid duplicates from engine events
             const isDuplicate = allNewsItems.some(n => n.title.toLowerCase() === title.toLowerCase());
             if (!isDuplicate) {
                 allNewsItems.push({
                     id: `GEMINI_${idx}`,
                     title: title,
                     type: 'AI Insight',
+                    event_type: 'AI Insight',
                     region: regionName,
                     intensity: sevBadge === 'critical' || sevBadge === 'high' ? 0.8 : (sevBadge === 'medium' ? 0.5 : 0.2),
                     supply_impact: sevBadge === 'critical' || sevBadge === 'high' ? 0.6 : 0.3,
@@ -1496,6 +1558,7 @@ function renderGeopoliticalNews() {
                     source: 'gemini',
                     sourceLabel: 'Analysis',
                     timestamp: new Date().toISOString(),
+                    date: new Date().toISOString(),
                     description: desc || `A geopolitical threat event has been identified affecting ${regionName}. This analysis was generated from real-time intelligence assessment.`,
                     affected_resources: resources.length > 0 ? resources : ['Energy Assets'],
                     expected_impact: impactEl?.textContent?.replace('Impact: ', '') || `Regional energy security implications for ${regionName}.`,
@@ -1506,34 +1569,35 @@ function renderGeopoliticalNews() {
         });
     }
 
-    // Source 3: User-added events (any events not from the default fallback set)
-    // Check for events added via the "Add Event" form (they have IDs like EV_5, EV_6, etc.)
-    const fallbackIds = ['EV_1', 'EV_2', 'EV_3', 'EV_4'];
-    state.events.filter(e => e.is_active && !fallbackIds.includes(e.id)).forEach((e, idx) => {
-        const isDuplicate = allNewsItems.some(n => n.id === e.id);
-        if (!isDuplicate) {
+    // Source 3: User-submitted events from Firebase
+    if (state.userSubmittedEvents && state.userSubmittedEvents.length > 0) {
+        state.userSubmittedEvents.forEach(e => {
+            let sevClass = 'stable';
+            let sevLabel = 'MONITOR';
+            if (e.severity === 'High') { sevClass = 'warning'; sevLabel = 'HIGH'; }
+            else if (e.severity === 'Critical') { sevClass = 'critical'; sevLabel = 'CRITICAL'; }
+            else if (e.severity === 'Medium') { sevClass = 'warning'; sevLabel = 'WARNING'; }
+            else if (e.severity === 'Low') { sevClass = 'stable'; sevLabel = 'MONITOR'; }
+
             allNewsItems.push({
                 id: e.id,
                 title: e.title,
                 type: e.type,
+                event_type: e.type,
                 region: e.region,
-                intensity: e.intensity,
-                supply_impact: e.supply_impact,
-                severity: e.intensity > 0.7 ? 'critical' : (e.intensity > 0.4 ? 'warning' : 'stable'),
-                severityLabel: e.intensity > 0.7 ? 'CRITICAL' : (e.intensity > 0.4 ? 'WARNING' : 'STABLE'),
+                severity: sevClass,
+                severityLabel: sevLabel,
                 source: 'user',
-                sourceLabel: 'User Report',
-                timestamp: e.date || e.createdAt || null,
-                description: e.description || `User-reported geopolitical event: ${e.title} in ${e.region}.`,
-                affected_resources: state.resources
-                    .filter(r => r.region.toLowerCase() === e.region.toLowerCase())
-                    .map(r => r.name),
-                expected_impact: `Projected supply disruption: ${(e.supply_impact * 100).toFixed(0)}% in ${e.region}.`,
-                source_url: null,
-                related_risks: []
+                sourceLabel: 'USER',
+                date: e.date,
+                timestamp: e.date,
+                description: e.description,
+                brent_price_at_event: null,
+                affected_resources: [e.resource || 'Energy Assets'],
+                expected_impact: `User reported threat for ${e.region}.`
             });
-        }
-    });
+        });
+    }
 
     // Cache for modal lookups
     _newsEventsCache = allNewsItems;
@@ -1541,9 +1605,8 @@ function renderGeopoliticalNews() {
     // Update feed badge
     const badge = document.getElementById('newsSourceBadge');
     if (badge) {
-        const sources = [...new Set(allNewsItems.map(n => n.source))];
         badge.textContent = allNewsItems.length > 0
-            ? `${allNewsItems.length} Active Alerts`
+            ? `${allNewsItems.length} Alerts`
             : 'No Active Threats';
     }
 
@@ -1552,39 +1615,47 @@ function renderGeopoliticalNews() {
         grid.innerHTML = `
         <div class="card" style="grid-column:1/-1; padding:2.5rem; text-align:center;">
             <div style="font-size: 2rem; margin-bottom: 0.75rem;">🛡️</div>
-            <div style="color:var(--text-primary); font-weight: 700; font-size: 0.95rem; margin-bottom: 0.4rem;">No Active Threat Alerts</div>
-            <div style="color:var(--text-muted); font-size: 0.82rem;">All monitored trade routes and supply chains are currently stabilized. Add events or refresh intelligence reports for live analysis.</div>
+            <div style="color:var(--text-primary); font-weight: 700; font-size: 0.95rem; margin-bottom: 0.4rem;">No Geopolitical Events</div>
+            <div style="color:var(--text-muted); font-size: 0.82rem;">No geopolitical energy alerts are currently loaded.</div>
         </div>`;
         return;
     }
 
-    // ── Render news cards (up to 6, sorted by severity) ──
-    const sortOrder = { 'critical': 0, 'warning': 1, 'stable': 2 };
-    const sorted = [...allNewsItems].sort((a, b) => (sortOrder[a.severity] || 2) - (sortOrder[b.severity] || 2));
+    // Sort: Dataset first, then USER, then SYSTEM/engine, then Gemini
+    const datasetFeed = allNewsItems.filter(item => item.source === 'dataset');
+    const userFeed = allNewsItems.filter(item => item.source === 'user');
+    const systemFeed = allNewsItems.filter(item => item.source === 'engine');
+    const geminiFeed = allNewsItems.filter(item => item.source === 'gemini');
 
-    grid.innerHTML = sorted.slice(0, 6).map((item, index) => {
+    const combinedFeed = [...datasetFeed, ...userFeed, ...systemFeed, ...geminiFeed];
+
+    grid.innerHTML = combinedFeed.map((item, index) => {
         const severityClass = `news-${item.severity}`;
-        const sourceColor = item.source === 'gemini' ? 'rgba(124,58,237,0.06)' : (item.source === 'user' ? 'rgba(22,163,74,0.06)' : 'rgba(37,99,235,0.06)');
-        const sourceTextColor = item.source === 'gemini' ? '#7C3AED' : (item.source === 'user' ? '#16A34A' : 'var(--accent-blue)');
-        const timeAgo = getTimeAgo(item.timestamp);
-
+        const sourceColor = item.source === 'dataset' ? 'rgba(124,58,237,0.08)' : (item.source === 'user' ? 'rgba(22,163,74,0.08)' : 'rgba(37,99,235,0.08)');
+        const sourceTextColor = item.source === 'dataset' ? '#7C3AED' : (item.source === 'user' ? '#16A34A' : 'var(--accent-blue)');
+        
+        const dateFormatted = formatEventDate(item.date || item.timestamp);
         const rawDesc = item.description || "No description available for this event.";
-        const truncatedDesc = rawDesc.length > 120 ? rawDesc.slice(0, 120) + '...' : rawDesc;
+        const truncatedDesc = rawDesc.length > 140 ? rawDesc.slice(0, 140) + '...' : rawDesc;
+        
+        const brentPriceHtml = (item.source === 'dataset' && item.brent_price_at_event)
+            ? `<span style="margin-left: 6px; font-weight: 600; color: var(--text-secondary);">Brent: $${parseFloat(item.brent_price_at_event).toFixed(2)}</span>`
+            : '';
 
         return `
         <div class="news-card ${severityClass}" onclick="showNewsEventDetail('${item.id}')" id="newsCard_${item.id}">
             <div class="news-severity-pulse ${item.severity}"></div>
             <div class="news-header">
                 <div style="display:flex; align-items:center; gap:4px;">
-                    <span class="news-tag">${item.type}</span>
+                    <span class="news-tag">${item.type.toUpperCase()}</span>
                     <span class="news-source-chip" style="background:${sourceColor}; color:${sourceTextColor};">${item.sourceLabel}</span>
                 </div>
-                <span class="news-time">${timeAgo}</span>
+                <span class="news-time">${dateFormatted}</span>
             </div>
             <h3 class="news-title">${item.title}</h3>
             <p class="news-desc">${truncatedDesc}</p>
             <div class="news-footer">
-                <span>📍 ${item.region}</span>
+                <span>📍 ${item.region} ${brentPriceHtml}</span>
                 <span style="font-weight:700; color:${item.severity === 'critical' ? 'var(--accent-red)' : (item.severity === 'warning' ? 'var(--accent-amber)' : 'var(--accent-green)')};">${item.severityLabel}</span>
             </div>
             <span class="news-click-hint">Click for details →</span>
@@ -1629,6 +1700,69 @@ function showNewsEventDetail(eventId) {
     const item = _newsEventsCache.find(n => n.id === eventId);
     if (!item) {
         body.innerHTML = '<div style="padding:2rem; text-align:center; color:var(--text-muted);">Event data not found.</div>';
+        modal.classList.add('visible');
+        return;
+    }
+
+    if (item.source === 'dataset') {
+        const numericSev = item.numericSeverity || (item.severity === 'critical' ? 10 : (item.severity === 'warning' ? 8 : 6));
+        const severityLabel = mapSeverityToLabel(numericSev);
+        const brentHtml = item.brent_price_at_event 
+            ? `<div class="news-modal-detail-item full-width">
+                   <div class="news-modal-detail-label">Brent Price</div>
+                   <div class="news-modal-detail-value">Brent crude on this date: $${parseFloat(item.brent_price_at_event).toFixed(2)}/barrel</div>
+               </div>`
+            : '';
+            
+        body.innerHTML = `
+            <!-- Hero Section -->
+            <div class="news-modal-hero">
+                <div class="news-modal-severity-indicator ${item.severity}">${item.severity === 'critical' ? '🔴' : (item.severity === 'warning' ? '🟡' : '🟢')}</div>
+                <div class="news-modal-hero-info">
+                    <div class="news-modal-title">${item.title}</div>
+                    <div class="news-modal-badges">
+                        <span class="news-modal-badge type-badge">${item.type}</span>
+                        <span class="news-modal-badge severity-badge ${item.severity}">${severityLabel} (${numericSev})</span>
+                        <span class="news-modal-badge source-badge" style="background: rgba(124,58,237,0.08); color: #7C3AED;">DATASET</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detail Grid -->
+            <div class="news-modal-detail-grid">
+                <div class="news-modal-detail-item">
+                    <div class="news-modal-detail-label">Event Type</div>
+                    <div class="news-modal-detail-value">${item.type}</div>
+                </div>
+                <div class="news-modal-detail-item">
+                    <div class="news-modal-detail-label">Country / Region</div>
+                    <div class="news-modal-detail-value">📍 ${item.region}</div>
+                </div>
+                <div class="news-modal-detail-item">
+                    <div class="news-modal-detail-label">Date</div>
+                    <div class="news-modal-detail-value">${formatEventDate(item.date)}</div>
+                </div>
+                <div class="news-modal-detail-item">
+                    <div class="news-modal-detail-label">Severity</div>
+                    <div class="news-modal-detail-value">${numericSev} — ${severityLabel}</div>
+                </div>
+                ${brentHtml}
+            </div>
+
+            <!-- Full Description -->
+            <div class="news-modal-description">
+                <div class="news-modal-description-title">Full Description</div>
+                <div class="news-modal-description-text">${item.description}</div>
+            </div>
+
+            <!-- Source -->
+            <div class="news-modal-detail-item full-width" style="margin-bottom: 1.25rem;">
+                <div class="news-modal-detail-label">Source</div>
+                <div class="news-modal-detail-value" style="font-size:0.85rem; font-weight:normal; color: var(--text-secondary);">
+                    Kaggle Geopolitical Events Timeline Dataset (2010–2026)
+                </div>
+            </div>
+        `;
         modal.classList.add('visible');
         return;
     }
@@ -2588,6 +2722,7 @@ function renderActiveSection() {
         if (state.activeSection === 'country-insights') renderCountryInsightsPage();
         if (state.activeSection === 'trends') renderTrends();
         if (state.activeSection === 'add-event') renderAddEventPage();
+        if (state.activeSection === 'all-events') renderAllEventsPage();
 
     }
 }
@@ -2624,6 +2759,7 @@ function handleRouting() {
         else if (path === '/trends') section = 'trends';
         else if (path === '/country-insights') section = 'country-insights';
         else if (path === '/add-event') section = 'add-event';
+        else if (path === '/all-events') section = 'all-events';
         else if (path === '/add-resource') section = 'add-resource';
         
         state.activeSection = section;
@@ -2646,6 +2782,16 @@ function setupNavigation() {
             window.scrollTo({ top: 0, behavior: 'smooth' });
         });
     });
+
+    const viewAllBtn = document.getElementById('btnViewAllEvents');
+    if (viewAllBtn) {
+        viewAllBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            history.pushState(null, '', '/all-events');
+            handleRouting();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    }
 
     window.addEventListener('popstate', handleRouting);
 }
@@ -5353,9 +5499,115 @@ function showFieldError(spanId, message) {
     }
 }
 
-// ============================================================================
-// INITIALIZATION
-// ============================================================================
+let _allEventsFiltersInitialized = false;
+
+function renderAllEventsPage() {
+    const grid = document.getElementById('allEventsGrid');
+    if (!grid) return;
+
+    const typeSelect = document.getElementById('filterAllEventsType');
+    const severitySelect = document.getElementById('filterAllEventsSeverity');
+    
+    if (typeSelect && !_allEventsFiltersInitialized) {
+        const uniqueTypes = [...new Set(state.datasetEvents.map(e => e.event_type || e.type))].filter(Boolean);
+        
+        typeSelect.innerHTML = '<option value="all">All Types</option>';
+        uniqueTypes.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t;
+            opt.textContent = t.toUpperCase();
+            typeSelect.appendChild(opt);
+        });
+        
+        typeSelect.addEventListener('change', renderAllEventsPage);
+        if (severitySelect) {
+            severitySelect.addEventListener('change', renderAllEventsPage);
+        }
+        _allEventsFiltersInitialized = true;
+    }
+
+    const selectedType = typeSelect ? typeSelect.value : 'all';
+    const selectedSeverity = severitySelect ? severitySelect.value : 'all';
+
+    let filtered = [...state.datasetEvents];
+    
+    if (selectedType !== 'all') {
+        filtered = filtered.filter(e => (e.event_type || e.type) === selectedType);
+    }
+    
+    if (selectedSeverity !== 'all') {
+        const minSev = parseInt(selectedSeverity);
+        filtered = filtered.filter(e => e.severity >= minSev);
+    }
+
+    filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    if (filtered.length === 0) {
+        grid.innerHTML = `
+            <div class="card" style="grid-column: 1 / -1; padding: 3rem; text-align: center; color: var(--text-muted);">
+                No events match the selected filters.
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = filtered.map(e => {
+        let sevClass = 'stable';
+        let sevLabel = 'MONITOR';
+        if (e.severity === 10) { sevClass = 'critical'; sevLabel = 'CRITICAL'; }
+        else if (e.severity === 9) { sevClass = 'critical'; sevLabel = 'HIGH'; }
+        else if (e.severity === 8) { sevClass = 'warning'; sevLabel = 'WARNING'; }
+        else if (e.severity === 7) { sevClass = 'warning'; sevLabel = 'ELEVATED'; }
+        else if (e.severity === 6) { sevClass = 'stable'; sevLabel = 'MONITOR'; }
+
+        const dateFormatted = formatEventDate(e.date);
+        const rawDesc = e.description || "No description available.";
+        const truncatedDesc = rawDesc.length > 140 ? rawDesc.slice(0, 140) + '...' : rawDesc;
+
+        const brentHtml = e.brent_price_at_event
+            ? `<span style="margin-left: 6px; font-weight: 600; color: var(--text-secondary);">Brent: $${parseFloat(e.brent_price_at_event).toFixed(2)}</span>`
+            : '';
+
+        if (!_newsEventsCache.some(item => item.id === e.id)) {
+            _newsEventsCache.push({
+                id: e.id,
+                title: e.title,
+                type: e.event_type || e.type,
+                event_type: e.event_type || e.type,
+                region: e.region,
+                severity: sevClass,
+                severityLabel: sevLabel,
+                numericSeverity: e.severity,
+                source: 'dataset',
+                sourceLabel: 'DATASET',
+                date: e.date,
+                description: e.description,
+                brent_price_at_event: e.brent_price_at_event,
+                affected_resources: [e.event_type || 'Energy Assets'],
+                expected_impact: `Kaggle Dataset threat alert for ${e.region}. Severity: ${e.severity}.`
+            });
+        }
+
+        return `
+        <div class="news-card ${sevClass}" onclick="showNewsEventDetail('${e.id}')" id="newsCard_${e.id}">
+            <div class="news-severity-pulse ${sevClass}"></div>
+            <div class="news-header">
+                <div style="display:flex; align-items:center; gap:4px;">
+                    <span class="news-tag">${(e.event_type || e.type).toUpperCase()}</span>
+                    <span class="news-source-chip" style="background:rgba(124,58,237,0.08); color:#7C3AED;">DATASET</span>
+                </div>
+                <span class="news-time">${dateFormatted}</span>
+            </div>
+            <h3 class="news-title">${e.title}</h3>
+            <p class="news-desc">${truncatedDesc}</p>
+            <div class="news-footer">
+                <span>📍 ${e.region} ${brentHtml}</span>
+                <span style="font-weight:700; color:${sevClass === 'critical' ? 'var(--accent-red)' : (sevClass === 'warning' ? 'var(--accent-amber)' : 'var(--accent-green)')};">${sevLabel}</span>
+            </div>
+            <span class="news-click-hint">Click for details →</span>
+        </div>`;
+    }).join('');
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     createParticles();
