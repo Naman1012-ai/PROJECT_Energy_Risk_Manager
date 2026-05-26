@@ -655,14 +655,6 @@
                             <option value="Nuclear">Nuclear</option>
                         </select>
                     </div>
-                    <div class="form-group" style="flex: 1; min-width: 120px;">
-                        <label for="trendsYearMin">Min Year</label>
-                        <input type="number" id="trendsYearMin" value="1900" min="1900" max="2026" style="width: 100%;">
-                    </div>
-                    <div class="form-group" style="flex: 1; min-width: 120px;">
-                        <label for="trendsYearMax">Max Year</label>
-                        <input type="number" id="trendsYearMax" value="2026" min="1900" max="2026" style="width: 100%;">
-                    </div>
                     <button type="button" class="btn-submit" id="btnAnalyzeTrends" style="padding: 0.75rem 1.5rem; height: fit-content; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
                         <span>Run Analytics Engine</span>
                     </button>
@@ -676,6 +668,7 @@
                     <div class="card">
                         <div class="card-header">
                             <h2 class="card-title" id="trendsConsTitle">Historical Consumption Pattern</h2>
+                            <span class="card-badge" id="trendsYearRangeLabel" style="background: rgba(37,99,235,0.1); color: var(--accent-blue); font-weight: 700;">Data range: —</span>
                             <span class="card-badge">Raw + Moving Average</span>
                         </div>
                         <div style="position: relative; height: 260px; margin-top: 1rem; width: 100%;">
@@ -712,7 +705,7 @@
                             <div class="info-item"><span class="info-label">X-Axis:</span><span class="info-value">Year</span></div>
                             <div class="info-item"><span class="info-label">Y-Axis:</span><span class="info-value" id="trendsPriceYLabel">Fuel Price</span></div>
                             <div class="info-item"><span class="info-label">Unit:</span><span class="info-value" id="trendsPriceUnit">—</span></div>
-                            <div class="info-item"><span class="info-label">Type:</span><span class="info-value">Raw market observation</span></div>
+                            <div class="info-item"><span class="info-label">Type:</span><span class="info-value" id="trendsPriceTypeLabel">Raw market observation</span></div>
 
                         </div>
                         <div class="chart-legend-strip">
@@ -721,6 +714,10 @@
                         <div class="chart-insight-box" id="trendsPriceInsight">
                             <span class="insight-icon">💰</span>
                             <span class="insight-text">Run the analytics engine to generate price trend interpretation.</span>
+                        </div>
+                        <div class="chart-insight-box" id="trendsPriceEstimationDisclosure" style="display:none; margin-top: 0.5rem; background: rgba(245,158,11,0.05); border-left: 4px solid var(--accent-amber); padding: 0.75rem; border-radius: 4px; font-size: 0.8rem; line-height: 1.4; color: var(--text-secondary);">
+                            <span class="insight-icon">ℹ️</span>
+                            <span class="insight-text" id="trendsPriceEstimationDisclosureText"></span>
                         </div>
                         <div class="chart-updated-stamp" id="trendsPriceTimestamp"></div>
                     </div>

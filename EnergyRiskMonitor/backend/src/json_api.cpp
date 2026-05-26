@@ -456,11 +456,15 @@ bool handleJsonApi(int argc, char* argv[]) {
             "../../data/Global Energy Dataset (1900-2024).csv"
         );
         cout << json << endl;
-    } else if (command == "analytics-trends" && argc >= 7) {
+    } else if (command == "analytics-trends" && argc >= 5) {
         string country = argv[3];
         string energyType = argv[4];
-        int minYear = stoi(argv[5]);
-        int maxYear = stoi(argv[6]);
+        int minYear = 0;
+        int maxYear = 9999;
+        if (argc >= 7) {
+            minYear = stoi(argv[5]);
+            maxYear = stoi(argv[6]);
+        }
         string json = AnalyticsEngine::serializeResult(
             AnalyticsEngine::generateTrends(
                 country, energyType, minYear, maxYear,

@@ -387,11 +387,17 @@ function formatCommodityPrice(priceVal, type) {
     }
     
     if (priceVal === null || priceVal === undefined || isNaN(priceVal) || priceVal === '') {
+        if (normalized === 'Oil') {
+            return "Not available — no price data in current datasets";
+        }
         return `Price data unavailable for ${normalized} in current datasets. The uploaded datasets do not contain a ${normalized}-specific price column.`;
     }
     
     const numVal = parseFloat(priceVal);
     if (numVal < std.realisticMin || numVal > std.realisticMax) {
+        if (normalized === 'Oil') {
+            return "Not available — no price data in current datasets";
+        }
         return `Price data unavailable for ${normalized} in current datasets. The uploaded datasets do not contain a ${normalized}-specific price column.`;
     }
     
@@ -716,12 +722,16 @@ async function initAppState() {
         // Map events
         state.events = evs.events.map((e, index) => ({
             id: `EV_${index + 1}`,
+            originalId: e.id,
             title: e.title,
             type: e.type,
             region: e.region,
             intensity: parseFloat(e.intensity) || 0.5,
             supply_impact: parseFloat(e.supply_impact) || 0.3,
-            is_active: e.is_active === 1
+            is_active: e.is_active === 1,
+            description: e.description || '',
+            date: e.date || e.createdAt || '',
+            createdAt: e.createdAt || e.date || ''
         }));
 
         // Combine resource definitions with analysis weights
@@ -1439,11 +1449,8 @@ function renderGeopoliticalNews() {
             severityLabel: e.intensity > 0.7 ? 'CRITICAL' : (e.intensity > 0.4 ? 'WARNING' : 'STABLE'),
             source: 'engine',
             sourceLabel: 'System',
-            timestamp: new Date(Date.now() - (index + 1) * 3600000).toISOString(),
-            description: `An active ${e.type.toLowerCase()} event in ${e.region} has escalated threat levels. ` +
-                `Localized supply networks show potential disruptions up to ${(e.supply_impact * 100).toFixed(0)}%. ` +
-                `The calculation engine is factoring this event into all composite scores for affected regional assets. ` +
-                `Intensity is rated at ${(e.intensity * 100).toFixed(0)}%, placing heightened stress on trade route dependencies and supply chain corridors.`,
+            timestamp: e.date || e.createdAt || null,
+            description: e.description || 'No description available for this event.',
             affected_resources: affectedResources.length > 0 ? affectedResources : [e.type || 'Energy Assets'],
             expected_impact: `Supply disruption potential of ${(e.supply_impact * 100).toFixed(0)}% across ${e.region} energy corridors. ` +
                 `Threat intensity: ${(e.intensity * 100).toFixed(0)}% — ${e.intensity > 0.7 ? 'immediate action recommended' : (e.intensity > 0.4 ? 'elevated monitoring required' : 'routine monitoring')}.`,
@@ -1516,10 +1523,8 @@ function renderGeopoliticalNews() {
                 severityLabel: e.intensity > 0.7 ? 'CRITICAL' : (e.intensity > 0.4 ? 'WARNING' : 'STABLE'),
                 source: 'user',
                 sourceLabel: 'User Report',
-                timestamp: new Date().toISOString(),
-                description: `User-reported geopolitical event: ${e.title} in ${e.region}. ` +
-                    `This ${e.type.toLowerCase()} event carries an intensity rating of ${(e.intensity * 100).toFixed(0)}% ` +
-                    `with a supply impact factor of ${(e.supply_impact * 100).toFixed(0)}%.`,
+                timestamp: e.date || e.createdAt || null,
+                description: e.description || `User-reported geopolitical event: ${e.title} in ${e.region}.`,
                 affected_resources: state.resources
                     .filter(r => r.region.toLowerCase() === e.region.toLowerCase())
                     .map(r => r.name),
@@ -1563,6 +1568,9 @@ function renderGeopoliticalNews() {
         const sourceTextColor = item.source === 'gemini' ? '#7C3AED' : (item.source === 'user' ? '#16A34A' : 'var(--accent-blue)');
         const timeAgo = getTimeAgo(item.timestamp);
 
+        const rawDesc = item.description || "No description available for this event.";
+        const truncatedDesc = rawDesc.length > 120 ? rawDesc.slice(0, 120) + '...' : rawDesc;
+
         return `
         <div class="news-card ${severityClass}" onclick="showNewsEventDetail('${item.id}')" id="newsCard_${item.id}">
             <div class="news-severity-pulse ${item.severity}"></div>
@@ -1574,7 +1582,7 @@ function renderGeopoliticalNews() {
                 <span class="news-time">${timeAgo}</span>
             </div>
             <h3 class="news-title">${item.title}</h3>
-            <p class="news-desc">${item.description}</p>
+            <p class="news-desc">${truncatedDesc}</p>
             <div class="news-footer">
                 <span>📍 ${item.region}</span>
                 <span style="font-weight:700; color:${item.severity === 'critical' ? 'var(--accent-red)' : (item.severity === 'warning' ? 'var(--accent-amber)' : 'var(--accent-green)')};">${item.severityLabel}</span>
@@ -1585,14 +1593,31 @@ function renderGeopoliticalNews() {
 }
 
 function getTimeAgo(isoString) {
-    const diff = Date.now() - new Date(isoString).getTime();
+    if (!isoString) return 'Date unknown';
+    const parsedDate = new Date(isoString);
+    if (isNaN(parsedDate.getTime())) return 'Date unknown';
+    
+    const diff = Date.now() - parsedDate.getTime();
+    if (diff < 0) return 'Just now';
+    
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return 'Just now';
     if (mins < 60) return `${mins}m ago`;
+    
     const hours = Math.floor(mins / 60);
     if (hours < 24) return `${hours}h ago`;
+    
     const days = Math.floor(hours / 24);
-    return `${days}d ago`;
+    if (days === 1) return '1 day ago';
+    if (days < 7) return `${days} days ago`;
+    
+    const weeks = Math.floor(days / 7);
+    if (weeks === 1) return '1 week ago';
+    if (weeks < 4) return `${weeks} weeks ago`;
+    
+    const months = Math.floor(days / 30.44);
+    if (months === 1) return '1 month ago';
+    return `${months} months ago`;
 }
 
 function showNewsEventDetail(eventId) {
@@ -1612,9 +1637,14 @@ function showNewsEventDetail(eventId) {
     const sevColor = item.severity === 'critical' ? 'var(--accent-red)' : (item.severity === 'warning' ? 'var(--accent-amber)' : 'var(--accent-green)');
     const impactPct = Math.min((item.supply_impact || 0.3) * 100, 100);
     const intensityPct = Math.min((item.intensity || 0.5) * 100, 100);
-    const eventDate = new Date(item.timestamp);
-    const dateFormatted = eventDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-    const timeFormatted = eventDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    
+    const eventDate = item.timestamp ? new Date(item.timestamp) : null;
+    const dateFormatted = (eventDate && !isNaN(eventDate.getTime())) 
+        ? eventDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+        : "Date unknown";
+    const timeFormatted = (eventDate && !isNaN(eventDate.getTime())) 
+        ? eventDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        : "Time unknown";
 
     body.innerHTML = `
         <!-- Hero Section -->
@@ -3448,11 +3478,11 @@ async function renderTrends() {
 async function runHistoricalTrendsAnalysis(forceRefresh) {
     const country = document.getElementById('trendsCountrySelect').value;
     const energyType = document.getElementById('trendsEnergyTypeSelect').value;
-    const minYear = parseInt(document.getElementById('trendsYearMin').value) || 1900;
-    const maxYear = parseInt(document.getElementById('trendsYearMax').value) || 2026;
     const btn = document.getElementById('btnAnalyzeTrends');
 
     if (!country) return;
+
+    console.log("Requesting analytics: " + country + " " + energyType);
 
     if (btn) {
         btn.disabled = true;
@@ -3466,15 +3496,75 @@ async function runHistoricalTrendsAnalysis(forceRefresh) {
         const response = await fetch('/api/analytics/trends', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ country, energy_type: energyType, min_year: minYear, max_year: maxYear, force_refresh: forceRefresh })
+            body: JSON.stringify({ country, energy_type: energyType, force_refresh: forceRefresh })
         });
         const result = await response.json();
+
+        // Diagnostic logs for Bug 2 STEP A
+        const responseJson = result;
+        console.log("Full analytics response:", JSON.stringify(responseJson));
+        console.log("Timeline field check:", {
+            hasTimeline: Array.isArray(responseJson.timeline),
+            timelineLength: responseJson.timeline?.length ?? 'undefined',
+            firstPoint: responseJson.timeline?.[0] ?? 'none',
+            rawKeys: Object.keys(responseJson)
+        });
+
+        console.log("Response keys: " + Object.keys(result));
 
         if (!response.ok || !result.success) {
             throw new Error(result.message || 'Error executing trends calculation');
         }
 
         const data = result.data;
+
+        // Derive and set year range used label
+        const timeline = data.consumption_timeline || [];
+        let from = data.min_year;
+        let to = data.max_year;
+        if (data.yearRangeUsed) {
+            from = data.yearRangeUsed.from;
+            to = data.yearRangeUsed.to;
+        } else if (timeline.length > 0) {
+            from = timeline[0].year;
+            to = timeline[timeline.length - 1].year;
+        }
+        
+        const yrLabel = document.getElementById('trendsYearRangeLabel');
+        const priceTimelineForLabel = (data.price_timeline || []).filter(p => {
+            const val = p.value !== undefined ? p.value : p.price;
+            return val !== null && val !== undefined && val !== 0 && val !== -9999.0 && isFinite(val);
+        });
+        const hasEstimated = priceTimelineForLabel.some(pt => pt.estimated);
+
+        if (yrLabel) {
+            if (hasEstimated && data.realDataRange) {
+                const earliestEstimatedYear = priceTimelineForLabel.length > 0 ? priceTimelineForLabel[0].year : from;
+                const latestEstimatedYear = priceTimelineForLabel.length > 0 ? priceTimelineForLabel[priceTimelineForLabel.length - 1].year : to;
+                const realFrom = data.realDataRange.from;
+                const realTo = data.realDataRange.to;
+                yrLabel.textContent = `DATA RANGE: ${earliestEstimatedYear} — ${latestEstimatedYear} (Real: ${realFrom}–${realTo} | Estimated: extrapolated)`;
+            } else {
+                yrLabel.textContent = "Data range: " + from + " — " + to;
+            }
+        }
+
+        // Show/hide estimation disclosure
+        const disclosureContainer = document.getElementById('trendsPriceEstimationDisclosure');
+        const disclosureText = document.getElementById('trendsPriceEstimationDisclosureText');
+        if (disclosureContainer && disclosureText) {
+            if (hasEstimated && data.realDataRange && data.regressionSlope !== undefined) {
+                const slopeVal = data.regressionSlope.toFixed(4);
+                const slopeFormatted = (data.regressionSlope >= 0 ? '+' : '') + slopeVal;
+                disclosureText.textContent = `Dashed segments represent trend-extrapolated estimates computed via linear regression on ${data.realDataRange.from}–${data.realDataRange.to} observed data. Slope: ${slopeFormatted} per year. Estimates are mathematically derived, not real observations.`;
+                disclosureContainer.style.display = 'block';
+            } else {
+                disclosureContainer.style.display = 'none';
+            }
+        }
+
+        const consUnit = data.chart_meta?.consumption?.unit || "TWh";
+        console.log("Timeline points: " + timeline.length + " | Unit: " + consUnit + " | Range: " + from + "–" + to);
 
         // Populate panel metrics
         const grEl = document.getElementById('trendsGrowthRate');
@@ -3806,7 +3896,13 @@ function renderHistoricalTrendsCharts(data) {
     }
 
     const consTimeline = data.consumption_timeline || [];
-    const priceTimeline = data.price_timeline || [];
+    const priceTimelineRaw = data.price_timeline || [];
+
+    // Universal validPoints filter for all price charts on the Trends page
+    const priceTimeline = priceTimelineRaw.filter(p => {
+        const val = p.value !== undefined ? p.value : p.price;
+        return val !== null && val !== undefined && val !== 0 && val !== -9999.0 && isFinite(val);
+    });
 
     const consLabels = consTimeline.map(pt => pt.year);
     const priceLabels = priceTimeline.map(pt => pt.year);
@@ -3826,8 +3922,8 @@ function renderHistoricalTrendsCharts(data) {
         return union.map(yr => (yearMap[yr] !== undefined ? yearMap[yr] : null));
     }
 
-    const consUnit = getConsumptionUnit(data.energy_type);
-    const priceUnit = getPriceUnit(data.energy_type);
+    const consUnit = data.chart_meta?.consumption?.unit || "TWh";
+    const priceUnit = data.chart_meta?.price?.unit || "USD";
     const resourceUnit = "%";
 
     const meta = data.chart_meta || {};
@@ -3850,28 +3946,59 @@ function renderHistoricalTrendsCharts(data) {
         unit: resourceUnit
     };
 
-    // Update DOM texts/labels
-    document.getElementById('trendsConsTitle').textContent = consMeta.chart_title;
-    document.getElementById('trendsConsYLabel').textContent = consMeta.y_axis_label;
-    document.getElementById('trendsConsUnit').textContent = consUnit;
-    document.getElementById('trendsConsSource').textContent = "Analytical Core Unified Energy Dataset";
+    // Update DOM texts/labels with robust null guards
+    const tctEl = document.getElementById('trendsConsTitle');
+    if (tctEl) tctEl.textContent = consMeta.chart_title;
 
-    document.getElementById('trendsPriceTitle').textContent = priceMeta.chart_title;
-    document.getElementById('trendsPriceYLabel').textContent = priceMeta.y_axis_label;
-    document.getElementById('trendsPriceUnit').textContent = priceUnit;
-    document.getElementById('trendsPriceSource').textContent = "Analytical Core Price & Index Dataset";
+    const tcyEl = document.getElementById('trendsConsYLabel');
+    if (tcyEl) tcyEl.textContent = consMeta.y_axis_label;
 
-    document.getElementById('trendsResourceTitle').textContent = resourceMeta.chart_title;
-    document.getElementById('trendsResourceSource').textContent = "Analytical Core Resource Mix Assessment";
+    const tcuEl = document.getElementById('trendsConsUnit');
+    if (tcuEl) tcuEl.textContent = consUnit;
+
+    const tcsEl = document.getElementById('trendsConsSource');
+    if (tcsEl) tcsEl.textContent = "Analytical Core Unified Energy Dataset";
+
+    const tptEl = document.getElementById('trendsPriceTitle');
+    if (tptEl) tptEl.textContent = priceMeta.chart_title;
+
+    const tpyEl = document.getElementById('trendsPriceYLabel');
+    if (tpyEl) tpyEl.textContent = priceMeta.y_axis_label;
+
+    const tpuEl = document.getElementById('trendsPriceUnit');
+    if (tpuEl) tpuEl.textContent = priceUnit;
+
+    const tpsEl = document.getElementById('trendsPriceSource');
+    if (tpsEl) tpsEl.textContent = "Analytical Core Price & Index Dataset";
+
+    const trtEl = document.getElementById('trendsResourceTitle');
+    if (trtEl) trtEl.textContent = resourceMeta.chart_title;
+
+    const trsEl = document.getElementById('trendsResourceSource');
+    if (trsEl) trsEl.textContent = "Analytical Core Resource Mix Assessment";
 
     const timeStr = new Date(data.generated_at || Date.now()).toLocaleString();
-    document.getElementById('trendsConsTimestamp').textContent = `Last updated: ${timeStr}`;
-    document.getElementById('trendsPriceTimestamp').textContent = `Last updated: ${timeStr}`;
-    document.getElementById('trendsResourceTimestamp').textContent = `Last updated: ${timeStr}`;
+    const tctmEl = document.getElementById('trendsConsTimestamp');
+    if (tctmEl) tctmEl.textContent = `Last updated: ${timeStr}`;
+
+    const tptmEl = document.getElementById('trendsPriceTimestamp');
+    if (tptmEl) tptmEl.textContent = `Last updated: ${timeStr}`;
+
+    const trtmEl = document.getElementById('trendsResourceTimestamp');
+    if (trtmEl) trtmEl.textContent = `Last updated: ${timeStr}`;
 
     const energyType = data.energy_type;
     let chart1Datasets = [];
     let chart2Datasets = [];
+
+    const isFallback = (energyType !== "Oil") || (data.price_error && data.price_error.includes("Fallback"));
+
+    const tptlEl = document.getElementById('trendsPriceTypeLabel');
+    if (tptlEl) {
+        tptlEl.textContent = isFallback ? "Estimated index (Brent-scaled)" : "Raw market observation";
+    }
+
+    const priceChartLabels = (priceLabels.length > 0 && energyType !== 'Renewables') ? priceLabels : unionYears;
 
     const pointRadius = unionYears.length > 15 ? 3 : 5;
     const pointHoverRadius = pointRadius + 2;
@@ -3880,7 +4007,8 @@ function renderHistoricalTrendsCharts(data) {
     const productionData = mapTimelineToUnion(consTimeline, 'production', unionYears);
     const maData = mapTimelineToUnion(consTimeline, 'moving_average', unionYears);
     const secondaryData = mapTimelineToUnion(consTimeline, 'secondary', unionYears);
-    const priceData = mapTimelineToUnion(priceTimeline, 'price', unionYears);
+    const priceData = mapTimelineToUnion(priceTimeline, 'price', priceChartLabels);
+    const secondaryDataForPriceChart = mapTimelineToUnion(consTimeline, 'secondary', priceChartLabels);
 
     if (energyType === "Oil") {
         chart1Datasets = [
@@ -3922,7 +4050,7 @@ function renderHistoricalTrendsCharts(data) {
 
         chart2Datasets = [
             {
-                label: `Market Price (${priceUnit})`,
+                label: isFallback ? `Oil Price Estimate (${priceUnit})` : `Market Price (${priceUnit})`,
                 data: priceData,
                 borderColor: '#F59E0B',
                 backgroundColor: 'rgba(245, 158, 11, 0.05)',
@@ -3974,7 +4102,7 @@ function renderHistoricalTrendsCharts(data) {
 
         chart2Datasets = [
             {
-                label: `Market Price (${priceUnit})`,
+                label: isFallback ? `Gas Price Estimate (${priceUnit})` : `Market Price (${priceUnit})`,
                 data: priceData,
                 borderColor: '#D97706',
                 backgroundColor: 'rgba(217, 119, 6, 0.05)',
@@ -4026,7 +4154,7 @@ function renderHistoricalTrendsCharts(data) {
 
         chart2Datasets = [
             {
-                label: `Coal Index Price (${priceUnit})`,
+                label: isFallback ? `Coal Price Estimate (${priceUnit})` : `Coal Index Price (${priceUnit})`,
                 data: priceData,
                 borderColor: '#D97706',
                 backgroundColor: 'rgba(217, 119, 6, 0.05)',
@@ -4068,7 +4196,7 @@ function renderHistoricalTrendsCharts(data) {
         chart2Datasets = [
             {
                 label: `Net Imports (${consUnit})`,
-                data: secondaryData,
+                data: secondaryDataForPriceChart,
                 borderColor: '#EF4444',
                 tension: 0.35,
                 fill: false,
@@ -4078,7 +4206,7 @@ function renderHistoricalTrendsCharts(data) {
                 spanGaps: true
             },
             {
-                label: `Energy Price Index (${priceUnit})`,
+                label: isFallback ? `Electricity Price Estimate (${priceUnit})` : `Energy Price Index (${priceUnit})`,
                 data: priceData,
                 borderColor: '#3B82F6',
                 backgroundColor: 'rgba(59, 130, 246, 0.05)',
@@ -4186,7 +4314,7 @@ function renderHistoricalTrendsCharts(data) {
         chart2Datasets = [
             {
                 label: `Nuclear Share (%)`,
-                data: secondaryData,
+                data: secondaryDataForPriceChart,
                 borderColor: '#8B5CF6',
                 backgroundColor: 'rgba(139, 92, 246, 0.05)',
                 tension: 0.35,
@@ -4197,7 +4325,7 @@ function renderHistoricalTrendsCharts(data) {
                 spanGaps: true
             },
             {
-                label: `Price Index (${priceUnit})`,
+                label: isFallback ? `Nuclear Price Estimate (${priceUnit})` : `Price Index (${priceUnit})`,
                 data: priceData,
                 borderColor: '#3B82F6',
                 tension: 0.35,
@@ -4225,7 +4353,7 @@ function renderHistoricalTrendsCharts(data) {
 
         chart2Datasets = [
             {
-                label: `Price (${priceUnit})`,
+                label: isFallback ? `${energyType} Price Estimate (${priceUnit})` : `Price (${priceUnit})`,
                 data: priceData,
                 borderColor: '#D97706',
                 backgroundColor: 'rgba(217, 119, 6, 0.05)',
@@ -4238,12 +4366,44 @@ function renderHistoricalTrendsCharts(data) {
         ];
     }
 
+    if (priceTimeline.some(pt => pt.estimated)) {
+        const validPoints = priceTimeline.filter(pt => pt.value !== undefined && pt.value !== null && pt.value !== -9999.0);
+        const realPoints = validPoints.filter(pt => !pt.estimated);
+        const estimatedPoints = validPoints.filter(pt => pt.estimated);
+
+        const realLabel = isFallback ? `${energyType} Price Estimate (${priceUnit})` : `Market Price (${priceUnit})`;
+
+        chart2Datasets = [
+            {
+                label: realLabel,
+                data: realPoints.map(p => ({ x: p.year, y: p.value })),
+                borderColor: '#E87C2A',
+                backgroundColor: 'transparent',
+                borderWidth: 2,
+                pointRadius: 4,
+                borderDash: []
+            },
+            {
+                label: 'Estimated (trend extrapolation)',
+                data: estimatedPoints.map(p => ({ x: p.year, y: p.value })),
+                borderColor: '#E87C2A',
+                backgroundColor: 'transparent',
+                borderWidth: 1.5,
+                pointRadius: 3,
+                borderDash: [5, 5],
+                pointStyle: 'triangle'
+            }
+        ];
+    }
+
     // 1. Render Consumption/Production Chart
     const canvasConsumption = document.getElementById('consumptionChart');
     if (canvasConsumption && consProceed) {
         const ctxConsumption = canvasConsumption.getContext('2d');
-        if (consumptionChartInstance) consumptionChartInstance.destroy();
-        consumptionChartInstance = new Chart(ctxConsumption, {
+        if (window.consumptionChartInstance instanceof Chart) {
+            window.consumptionChartInstance.destroy();
+        }
+        window.consumptionChartInstance = new Chart(ctxConsumption, {
             type: 'line',
             data: {
                 labels: unionYears,
@@ -4276,11 +4436,13 @@ function renderHistoricalTrendsCharts(data) {
     const canvasPrices = document.getElementById('fuelPricesChart');
     if (canvasPrices && priceProceed) {
         const ctxPrices = canvasPrices.getContext('2d');
-        if (fuelPricesChartInstance) fuelPricesChartInstance.destroy();
-        fuelPricesChartInstance = new Chart(ctxPrices, {
+        if (window.fuelPricesChartInstance instanceof Chart) {
+            window.fuelPricesChartInstance.destroy();
+        }
+        window.fuelPricesChartInstance = new Chart(ctxPrices, {
             type: 'line',
             data: {
-                labels: unionYears,
+                labels: priceChartLabels,
                 datasets: chart2Datasets
             },
             options: {
@@ -4324,8 +4486,10 @@ function renderHistoricalTrendsCharts(data) {
         };
         const barColors = barLabels.map(label => categoryColors[label] || "rgba(156, 163, 175, 0.7)");
 
-        if (resourcesBarChartInstance) resourcesBarChartInstance.destroy();
-        resourcesBarChartInstance = new Chart(ctxBar, {
+        if (window.resourcesBarChartInstance instanceof Chart) {
+            window.resourcesBarChartInstance.destroy();
+        }
+        window.resourcesBarChartInstance = new Chart(ctxBar, {
             type: 'bar',
             data: {
                 labels: barLabels,

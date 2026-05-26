@@ -267,16 +267,116 @@ const DEFAULT_RESOURCES = [
 ];
 
 const DEFAULT_EVENTS = [
-    { id: "E001", title: "Russia-Ukraine War", type: "War", region: "Russia", intensity: 0.85, supply_impact: 0.30, is_active: 1 },
-    { id: "E002", title: "US-Iran Sanctions", type: "Sanctions", region: "Middle East", intensity: 0.70, supply_impact: 0.15, is_active: 1 },
-    { id: "E003", title: "OPEC Production Cut", type: "ProductionCut", region: "Saudi Arabia", intensity: 0.50, supply_impact: 0.08, is_active: 1 },
-    { id: "E004", title: "Libyan Political Instability", type: "Instability", region: "Global", intensity: 0.40, supply_impact: 0.05, is_active: 1 },
-    { id: "E005", title: "Red Sea Trade Disruption", type: "TradeRestriction", region: "Middle East", intensity: 0.65, supply_impact: 0.12, is_active: 1 },
-    { id: "E006", title: "Venezuela Economic Crisis", type: "Instability", region: "Venezuela", intensity: 0.55, supply_impact: 0.10, is_active: 1 },
-    { id: "E007", title: "EU Energy Crisis", type: "TradeRestriction", region: "EU", intensity: 0.60, supply_impact: 0.20, is_active: 1 },
-    { id: "E008", title: "China Coal Import Restrictions", type: "Sanctions", region: "China", intensity: 0.45, supply_impact: 0.05, is_active: 1 },
-    { id: "E009", title: "Iraq Kurdistan Tensions", type: "Instability", region: "Middle East", intensity: 0.35, supply_impact: 0.04, is_active: 1 },
-    { id: "E010", title: "Norway Gas Pipeline Sabotage", type: "War", region: "EU", intensity: 0.80, supply_impact: 0.25, is_active: 0 }
+    {
+        id: "E001",
+        title: "Russia-Ukraine War",
+        type: "War",
+        region: "Russia",
+        intensity: 0.85,
+        supply_impact: 0.30,
+        is_active: 1,
+        description: "Ongoing target campaigns against high-voltage transmission lines and distribution substations, resulting in rotating blackouts and supply bottlenecks.",
+        date: "2026-05-25T23:50:51Z"
+    },
+    {
+        id: "E002",
+        title: "US-Iran Sanctions",
+        type: "Sanctions",
+        region: "Middle East",
+        intensity: 0.70,
+        supply_impact: 0.15,
+        is_active: 1,
+        description: "Multilateral trade restrictions targeting crude oil, gas, and coal exports, limiting market access and forcing steep price discounts.",
+        date: "2026-05-25T20:50:51Z"
+    },
+    {
+        id: "E003",
+        title: "OPEC Production Cut",
+        type: "ProductionCut",
+        region: "Saudi Arabia",
+        intensity: 0.50,
+        supply_impact: 0.08,
+        is_active: 1,
+        description: "Voluntary supply cuts designed to offset expanding production in non-OPEC countries and support global price floors.",
+        date: "2026-05-25T01:50:51Z"
+    },
+    {
+        id: "E004",
+        title: "Libyan Political Instability",
+        type: "Instability",
+        region: "Global",
+        intensity: 0.40,
+        supply_impact: 0.05,
+        is_active: 1,
+        description: "Political unrest and competing governmental claims in eastern Libya trigger temporary shutdowns at key eastern export terminals.",
+        date: "2026-05-23T01:50:51Z"
+    },
+    {
+        id: "E005",
+        title: "Red Sea Trade Disruption",
+        type: "TradeRestriction",
+        region: "Middle East",
+        intensity: 0.65,
+        supply_impact: 0.12,
+        is_active: 1,
+        description: "Asymmetric drone and missile attacks targeting cargo vessels, causing rerouting of energy tankers around the Cape of Good Hope.",
+        date: "2026-05-21T01:50:51Z"
+    },
+    {
+        id: "E006",
+        title: "Venezuela Economic Crisis",
+        type: "Instability",
+        region: "Venezuela",
+        intensity: 0.55,
+        supply_impact: 0.10,
+        is_active: 1,
+        description: "Severe domestic crisis continues to hamper state-run PDVSA's oil production, leading to refinery outages and lack of critical investment.",
+        date: "2026-05-19T01:50:51Z"
+    },
+    {
+        id: "E007",
+        title: "EU Energy Crisis",
+        type: "TradeRestriction",
+        region: "EU",
+        intensity: 0.60,
+        supply_impact: 0.20,
+        is_active: 1,
+        description: "High volatility and supply constraints in regional gas networks, combined with power import limitations, placing immense stress on retail pricing.",
+        date: "2026-05-12T01:50:51Z"
+    },
+    {
+        id: "E008",
+        title: "China Coal Import Restrictions",
+        type: "Sanctions",
+        region: "China",
+        intensity: 0.45,
+        supply_impact: 0.05,
+        is_active: 1,
+        description: "Informal import restrictions and tariff adjustments on thermal coal, aiming to support domestic production and manage emissions targets.",
+        date: "2026-05-05T01:50:51Z"
+    },
+    {
+        id: "E009",
+        title: "Iraq Kurdistan Tensions",
+        type: "Instability",
+        region: "Middle East",
+        intensity: 0.35,
+        supply_impact: 0.04,
+        is_active: 1,
+        description: "Geopolitical disputes over export pipelines between Baghdad and Erbil, leading to suspended pipeline flows and legal friction.",
+        date: "2026-04-26T01:50:51Z"
+    },
+    {
+        id: "E010",
+        title: "Norway Gas Pipeline Sabotage",
+        type: "War",
+        region: "EU",
+        intensity: 0.80,
+        supply_impact: 0.25,
+        is_active: 0,
+        description: "Underwater explosions causing significant physical damage to gas pipelines and subsea cables, triggering heightened military patrols.",
+        date: "2026-03-26T01:50:51Z"
+    }
 ];
 
 // ---- Firebase CSV Sync Orchestrator ----
@@ -554,6 +654,58 @@ function getLatestPriceForCountry(countryName) {
     }
 }
 
+function getCountryNameForResource(r) {
+    if (!r) return null;
+    const name = r.name.toLowerCase();
+    const region = r.region.toLowerCase();
+    
+    if (name.includes('saudi')) return 'Saudi Arabia';
+    if (name.includes('russian') || name.includes('russia')) return 'Russia';
+    if (name.includes('iranian') || name.includes('iran')) return 'Iran';
+    if (name.includes('iraqi') || name.includes('iraq')) return 'Iraq';
+    if (name.includes('us ') || name.includes('us crude') || name.includes('us natural') || region === 'usa') return 'United States';
+    if (name.includes('norwegian') || name.includes('norway')) return 'Norway';
+    if (name.includes('chinese') || name.includes('china')) return 'China';
+    if (name.includes('qatari') || name.includes('qatar')) return 'Qatar';
+    if (name.includes('venezuelan') || name.includes('venezuela')) return 'Venezuela';
+    if (name.includes('canadian') || name.includes('canada')) return 'Canada';
+    
+    const countries = ['Saudi Arabia', 'Russia', 'United States', 'China', 'Venezuela', 'Norway', 'Qatar', 'Iraq', 'Iran'];
+    for (const c of countries) {
+        if (region === c.toLowerCase()) return c;
+    }
+    return null;
+}
+
+function enrichResource(r) {
+    if (!r) return;
+    if (r.type.toLowerCase() === 'oil' || r.type.toLowerCase() === 'crude oil') {
+        const countryName = getCountryNameForResource(r);
+        const priceInfo = getLatestPriceForCountry(countryName);
+        if (priceInfo && priceInfo.price !== null) {
+            r.price = priceInfo.price;
+        } else {
+            r.price = null;
+        }
+    } else {
+        r.price = null;
+    }
+}
+
+function enrichEvent(e) {
+    if (!e) return;
+    const match = DEFAULT_EVENTS.find(d => d.id === e.id);
+    if (match) {
+        e.description = match.description || 'No description available for this event.';
+        e.date = match.date || '';
+        e.createdAt = match.date || '';
+    } else {
+        e.description = e.description || 'No description available for this event.';
+        e.date = e.date || e.createdAt || '';
+        e.createdAt = e.createdAt || e.date || '';
+    }
+}
+
 // ============================================================================
 // Region Insights Orchestrator
 // Checks Firebase cache first, calls Gemini if stale, saves result back.
@@ -656,13 +808,16 @@ async function runCppBackend(args) {
             maxBuffer: 50 * 1024 * 1024  // 50MB output buffer
         };
 
+        console.log("Spawning C++:", ['--json', ...args]);
         execFile(EXE_PATH, ['--json', ...args], options, (error, stdout, stderr) => {
             if (error) {
-                console.error(`[C++ ERROR] ${error.message}`);
-                if (stderr) console.error(`[C++ STDERR] ${stderr}`);
+                console.error("C++ exec error:", error.message);
+                console.error("stderr:", stderr);
                 reject(new Error(`C++ backend error: ${error.message}`));
                 return;
             }
+
+            console.log("C++ stdout received, length: " + stdout.length + " chars");
 
             // stderr may contain "Successfully loaded..." messages from data_loader
             // That's fine — we only care about stdout which has the JSON
@@ -1287,8 +1442,6 @@ const server = http.createServer(async (req, res) => {
                     const body = await parseRequestBody(req);
                     const country = body.country;
                     const energyType = body.energy_type || 'Oil';
-                    const minYear = parseInt(body.min_year) || 1900;
-                    const maxYear = parseInt(body.max_year) || 2026;
                     const forceRefresh = !!body.force_refresh;
 
                     if (!country) {
@@ -1296,6 +1449,8 @@ const server = http.createServer(async (req, res) => {
                         res.end(JSON.stringify({ success: false, message: 'Country is required' }));
                         return;
                     }
+
+                    console.log(`Analytics route hit: ${country} ${energyType}`);
 
                     const countryId = normalizeRegionId(country);
                     const typeId = normalizeRegionId(energyType);
@@ -1311,7 +1466,7 @@ const server = http.createServer(async (req, res) => {
                             if (cached && cached.generated_at) {
                                 const age = Date.now() - new Date(cached.generated_at).getTime();
                                 // 24 hours cache TTL
-                                if (age < 86400000 && parseInt(cached.min_year) === minYear && parseInt(cached.max_year) === maxYear) {
+                                if (age < 86400000) {
                                     console.log(`[CACHE] Returning cached trends for ${country}/${energyType}`);
                                     res.writeHead(200);
                                     res.end(JSON.stringify({
@@ -1329,7 +1484,7 @@ const server = http.createServer(async (req, res) => {
                     }
 
                     // 2. Invoke C++ Backend
-                    const args = ['analytics-trends', country, energyType, minYear.toString(), maxYear.toString()];
+                    const args = ['analytics-trends', country, energyType];
                     const rawData = await runCppBackend(args);
 
                     // CENTRALIZED DATA VALIDATION LAYER — STEP 1 & 4 ENFORCEMENT
@@ -1542,12 +1697,21 @@ const server = http.createServer(async (req, res) => {
             // ---- C++ Backend Relay Routes (GET) ----
             if (pathname === '/api/dashboard') {
                 data = await runCppBackend(['dashboard']);
+                if (data && data.active_events_list) {
+                    data.active_events_list.forEach(enrichEvent);
+                }
             }
             else if (pathname === '/api/resources') {
                 data = await runCppBackend(['resources']);
+                if (data && data.resources) {
+                    data.resources.forEach(enrichResource);
+                }
             }
             else if (pathname === '/api/events') {
                 data = await runCppBackend(['events']);
+                if (data && data.events) {
+                    data.events.forEach(enrichEvent);
+                }
             }
             else if (pathname === '/api/regions') {
                 data = await runCppBackend(['regions']);
@@ -1563,6 +1727,11 @@ const server = http.createServer(async (req, res) => {
                     return;
                 }
                 data = await runCppBackend(['search', query]);
+                if (data && data.results) {
+                    data.results.forEach(item => {
+                        if (item.resource) enrichResource(item.resource);
+                    });
+                }
             }
             else if (pathname.startsWith('/api/resource/')) {
                 const id = pathname.split('/api/resource/')[1];
@@ -1572,6 +1741,10 @@ const server = http.createServer(async (req, res) => {
                     return;
                 }
                 data = await runCppBackend(['resource', id]);
+                if (data) {
+                    if (data.resource) enrichResource(data.resource);
+                    if (data.related_events) data.related_events.forEach(enrichEvent);
+                }
             }
             else {
                 res.writeHead(404);

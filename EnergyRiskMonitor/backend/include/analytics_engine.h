@@ -9,13 +9,14 @@
 #include <map>
 
 struct TrendPoint {
-    int year;
-    double consumption_value;
-    double fuel_price_value;
-    double moving_average;
-    double yoy_change;
-    double production_value;
-    double secondary_value;
+    int year = 0;
+    double consumption_value = 0.0;
+    double fuel_price_value = -9999.0;
+    double moving_average = 0.0;
+    double yoy_change = 0.0;
+    double production_value = 0.0;
+    double secondary_value = 0.0;
+    bool is_estimated = false;
 };
 
 struct AnalyticsResult {
@@ -36,6 +37,13 @@ struct AnalyticsResult {
     std::vector<TrendPoint> consumption_timeline;
     std::vector<TrendPoint> price_timeline;
     std::map<std::string, double> resource_shares; // latest year resource mix
+
+    std::string estimation_method;
+    double regression_slope = 0.0;
+    double regression_intercept = 0.0;
+    int real_data_from = 0;
+    int real_data_to = 0;
+    int estimated_points_count = 0;
 };
 
 class AnalyticsEngine {

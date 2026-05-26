@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <iostream>
 #include <cmath>
+#include <algorithm>
 
 using namespace std;
 
@@ -305,18 +306,8 @@ AnalyticsResult AnalyticsEngine::generateTrends(
         }
     }
 
-    int priceMinYear = 9999, priceMaxYear = -9999;
-    for (const auto& pair : mergedPrices) {
-        if (pair.second > 0.0) {
-            if (pair.first < priceMinYear) priceMinYear = pair.first;
-            if (pair.first > priceMaxYear) priceMaxYear = pair.first;
-        }
-    }
-
-    if (priceMinYear > priceMaxYear) {
-        priceMinYear = 2000;
-        priceMaxYear = 2024;
-    }
+    int priceMinYear = 2020;
+    int priceMaxYear = 2024;
 
     // 6. Calculate CAGR for Consumption
     int firstNonZeroYear = -1;
@@ -412,6 +403,103 @@ AnalyticsResult AnalyticsEngine::generateTrends(
         priceTimelinePoints.push_back(pt);
     }
     res.price_timeline = priceTimelinePoints;
+
+    // Linear regression based price timeline estimation
+    if (!res.price_timeline.empty()) {
+        double sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+        int n = 0;
+        double minObservedValue = 999999.0;
+        int firstRealYear = 9999;
+        int lastRealYear = -9999;
+
+        for (const auto& pt : res.price_timeline) {
+            if (pt.year >= 2020 && pt.year <= 2024 && pt.fuel_price_value > -9998.0) {
+                double x = pt.year;
+                double y = pt.fuel_price_value;
+                sumX += x;
+                sumY += y;
+                sumXY += x * y;
+                sumX2 += x * x;
+                n++;
+                if (y < minObservedValue) {
+                    minObservedValue = y;
+                }
+                if (pt.year < firstRealYear) firstRealYear = pt.year;
+                if (pt.year > lastRealYear) lastRealYear = pt.year;
+            }
+        }
+
+        if (n >= 1) {
+            if (minObservedValue > 999990.0) {
+                minObservedValue = 0.0;
+            }
+            if (firstRealYear == 9999) firstRealYear = 2020;
+            if (lastRealYear == -9999) lastRealYear = 2024;
+
+            double slope = 0.0;
+            double intercept = 0.0;
+            if (n >= 2 && (n * sumX2 - sumX * sumX) != 0.0) {
+                slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+                intercept = (sumY - slope * sumX) / n;
+            } else if (n == 1) {
+                slope = 0.0;
+                intercept = sumY;
+            }
+
+            res.estimation_method = "linear_regression";
+            res.regression_slope = slope;
+            res.regression_intercept = intercept;
+            res.real_data_from = 2020;
+            res.real_data_to = 2024;
+
+            int estCount = 0;
+
+            // STEP 2 — Generate 3 backward estimated points
+            for (int yr = firstRealYear - 3; yr <= firstRealYear - 1; ++yr) {
+                double estimatedValue = slope * yr + intercept;
+                if (estimatedValue < minObservedValue) {
+                    estimatedValue = minObservedValue;
+                }
+                TrendPoint pt;
+                pt.year = yr;
+                pt.consumption_value = -9999.0;
+                pt.production_value = -9999.0;
+                pt.secondary_value = -9999.0;
+                pt.fuel_price_value = estimatedValue;
+                pt.moving_average = -9999.0;
+                pt.yoy_change = -9999.0;
+                pt.is_estimated = true;
+                res.price_timeline.push_back(pt);
+                estCount++;
+            }
+
+            // STEP 3 — Generate forward estimated points up to 2 years ahead
+            for (int yr = lastRealYear + 1; yr <= lastRealYear + 2; ++yr) {
+                double estimatedValue = slope * yr + intercept;
+                if (estimatedValue < minObservedValue) {
+                    estimatedValue = minObservedValue;
+                }
+                TrendPoint pt;
+                pt.year = yr;
+                pt.consumption_value = -9999.0;
+                pt.production_value = -9999.0;
+                pt.secondary_value = -9999.0;
+                pt.fuel_price_value = estimatedValue;
+                pt.moving_average = -9999.0;
+                pt.yoy_change = -9999.0;
+                pt.is_estimated = true;
+                res.price_timeline.push_back(pt);
+                estCount++;
+            }
+
+            res.estimated_points_count = estCount;
+
+            // STEP 4 — Sort the full timeline by year ascending
+            std::sort(res.price_timeline.begin(), res.price_timeline.end(), [](const TrendPoint& a, const TrendPoint& b) {
+                return a.year < b.year;
+            });
+        }
+    }
 
     // Price change percentage
     double firstPrice = -9999.0, lastPrice = -9999.0;
@@ -584,6 +672,7 @@ string AnalyticsEngine::serializeResult(const AnalyticsResult& r) {
     o << "\"energy_type\":\"" << jsonEscape(r.energy_type) << "\",";
     o << "\"min_year\":" << r.min_year << ",";
     o << "\"max_year\":" << r.max_year << ",";
+    o << "\"yearRangeUsed\":{\"from\":" << r.min_year << ",\"to\":" << r.max_year << "},";
     o << "\"growth_rate\":" << fmtVal(r.avg_growth_rate) << ",";
     o << "\"price_change_percentage\":" << fmtVal(r.price_change_percentage) << ",";
     o << "\"transition_speed\":\"" << jsonEscape(r.transition_speed) << "\",";
@@ -593,6 +682,11 @@ string AnalyticsEngine::serializeResult(const AnalyticsResult& r) {
     o << "\"consumption_error\":\"" << jsonEscape(r.consumption_error) << "\",";
     o << "\"price_error\":\"" << jsonEscape(r.price_error) << "\",";
     o << "\"data_points\":" << dataPoints << ",";
+    o << "\"estimationMethod\":\"" << jsonEscape(r.estimation_method) << "\",";
+    o << "\"regressionSlope\":" << r.regression_slope << ",";
+    o << "\"regressionIntercept\":" << r.regression_intercept << ",";
+    o << "\"realDataRange\":{\"from\":" << r.real_data_from << ",\"to\":" << r.real_data_to << "},";
+    o << "\"estimatedPoints\":" << r.estimated_points_count << ",";
 
     o << "\"chart_meta\":{";
     o << "\"consumption\":{";
@@ -648,8 +742,9 @@ string AnalyticsEngine::serializeResult(const AnalyticsResult& r) {
         if (i > 0) o << ",";
         o << "{";
         o << "\"year\":" << r.price_timeline[i].year << ",";
-        o << "\"price\":" << fmtVal(r.price_timeline[i].fuel_price_value);
-        o << "}";
+        o << "\"price\":" << fmtVal(r.price_timeline[i].fuel_price_value) << ",";
+        o << "\"value\":" << fmtVal(r.price_timeline[i].fuel_price_value) << ",";
+        o << "\"estimated\":" << (r.price_timeline[i].is_estimated ? "true" : "false") << "}";
     }
     o << "],";
 
