@@ -49,14 +49,18 @@ The primary goals of the platform are:
 
 # Run Locally
 
-1. Compile (include json_api.cpp)                                                                                
-g++ -o EnergyRisk.exe main.cpp data_loader.cpp risk_engine.cpp features.cpp analysis.cpp display.cpp json_api.cpp -std=c++11
+1. Compile (include json_api.cpp)
+   ```                                                                             
+   g++ -o EnergyRisk.exe main.cpp data_loader.cpp risk_engine.cpp features.cpp analysis.cpp display.cpp json_api.cpp -std=c++11
+   ```
 
 2. Start the web server
-node EnergyRiskMonitor/services/server.js
+   ```
+   node EnergyRiskMonitor/services/server.js
+   ```
 
 3. Open browser
-->http://localhost:3000
+   ->http://localhost:3000
 
 ---
 
