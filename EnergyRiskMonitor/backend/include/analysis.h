@@ -14,17 +14,15 @@
 #include "data_loader.h"
 #include "risk_engine.h"
 
-using namespace std;
-
 // Analyzes supply disruption risk for all resources
 // Calculates each resource's risk score, sorts by supply_score (highest first),
 // and displays results with associated active events. Also reports how many
 // resources are at HIGH supply disruption risk.
-void analyzeSupplyDisruption(vector<EnergyResource> resources, vector<GeopoliticalEvent> events);
+void analyzeSupplyDisruption(std::vector<EnergyResource> resources, std::vector<GeopoliticalEvent> events);
 
 // Groups resources by region and calculates the average risk score per region
 // Sorts regions from highest to lowest average score and displays a formatted
 // table with region name, resource count, average score, and risk level
-void compareRegionRisk(vector<EnergyResource> resources, vector<GeopoliticalEvent> events);
+void compareRegionRisk(std::vector<EnergyResource> resources, std::vector<GeopoliticalEvent> events);
 
 #endif // ANALYSIS_H

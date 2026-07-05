@@ -15,23 +15,21 @@
 #include "data_loader.h"
 #include "risk_engine.h"
 
-using namespace std;
-
 // Calculates risk scores for all resources, sorts them by raw_score (highest
 // first), and prints a formatted table with columns: Name, Region, Type,
 // Score, and Risk Level. Uses setw() for alignment.
-void printRiskTable(vector<EnergyResource> resources, vector<GeopoliticalEvent> events);
+void printRiskTable(std::vector<EnergyResource> resources, std::vector<GeopoliticalEvent> events);
 
 // Displays a comprehensive global risk summary including:
 // total resources, global average risk score, total active events,
 // count of HIGH/MEDIUM/LOW resources, a bar chart using = signs,
 // and the top 3 highest-risk resources with their scores
-void displayGlobalSummary(vector<EnergyResource> resources, vector<GeopoliticalEvent> events);
+void displayGlobalSummary(std::vector<EnergyResource> resources, std::vector<GeopoliticalEvent> events);
 
 // Formats and prints a risk level label with distinctive visual styling:
 // HIGH   -> [!! HIGH !!]
 // MEDIUM -> [~ MEDIUM ~]
 // LOW    -> [  LOW  ]
-void printRiskLabel(string level);
+void printRiskLabel(std::string level);
 
 #endif // DISPLAY_H

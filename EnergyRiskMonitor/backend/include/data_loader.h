@@ -13,15 +13,13 @@
 #include <string>
 #include <vector>
 
-using namespace std;
-
 // Struct representing a single energy resource loaded from energy_data.csv
 // Each field corresponds to one column in the CSV file
 struct EnergyResource {
-    string id;                  // Unique identifier (e.g., OIL_SAU)
-    string name;                // Full readable name (e.g., Saudi Crude Oil)
-    string type;                // Category: Oil, Gas, Coal, Electricity, Renewable
-    string region;              // Country or region name (e.g., Saudi Arabia)
+    std::string id;                  // Unique identifier (e.g., OIL_SAU)
+    std::string name;                // Full readable name (e.g., Saudi Crude Oil)
+    std::string type;                // Category: Oil, Gas, Coal, Electricity, Renewable
+    std::string region;              // Country or region name (e.g., Saudi Arabia)
     double production;          // Daily production volume
     double consumption;         // Daily consumption volume
     double reserve_years;       // Estimated years of reserves remaining
@@ -32,10 +30,10 @@ struct EnergyResource {
 // Struct representing a geopolitical event loaded from events.csv
 // Events affect the risk score of energy resources in their region
 struct GeopoliticalEvent {
-    string id;                  // Unique event identifier (e.g., E001)
-    string title;               // Full event name (e.g., Russia-Ukraine War)
-    string type;                // Category: War, Sanctions, Instability, TradeRestriction, ProductionCut
-    string region;              // Affected country or region
+    std::string id;                  // Unique event identifier (e.g., E001)
+    std::string title;               // Full event name (e.g., Russia-Ukraine War)
+    std::string type;                // Category: War, Sanctions, Instability, TradeRestriction, ProductionCut
+    std::string region;              // Affected country or region
     double intensity;           // Severity: 0.0 (weak) to 1.0 (very severe)
     double supply_impact;       // Supply reduction: 0.0 to 1.0
     int is_active;              // 1 = currently happening, 0 = ended
@@ -46,14 +44,14 @@ struct RiskScore;
 
 // Reads energy_data.csv and returns a vector of all energy resources
 // If the file cannot be opened, prints an error and returns an empty vector
-vector<EnergyResource> loadEnergyResources(string filename);
+std::vector<EnergyResource> loadEnergyResources(std::string filename);
 
 // Reads events.csv and returns a vector of all geopolitical events
 // If the file cannot be opened, prints an error and returns an empty vector
-vector<GeopoliticalEvent> loadEvents(string filename);
+std::vector<GeopoliticalEvent> loadEvents(std::string filename);
 
 // Saves calculated risk scores to an output CSV file
 // Called when the user selects option 6 (Save and Exit) from the main menu
-void saveRiskScores(vector<RiskScore> scores, string filename);
+void saveRiskScores(std::vector<RiskScore> scores, std::string filename);
 
 #endif // DATA_LOADER_H

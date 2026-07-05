@@ -14,15 +14,13 @@
 #include <vector>
 #include "data_loader.h"
 
-using namespace std;
-
 // Struct holding the complete risk assessment for one energy resource
 // Contains the final score, the five individual sub-scores, and the risk level
 struct RiskScore {
-    string resource_id;         // ID of the energy resource (e.g., OIL_RUS)
-    string resource_name;       // Full name of the resource
-    string region;              // Region of the resource
-    string level;               // Risk classification: HIGH, MEDIUM, or LOW
+    std::string resource_id;         // ID of the energy resource (e.g., OIL_RUS)
+    std::string resource_name;       // Full name of the resource
+    std::string region;              // Region of the resource
+    std::string level;               // Risk classification: HIGH, MEDIUM, or LOW
     double raw_score;           // Final weighted risk score (0 to 100)
     double supply_score;        // Supply disruption sub-score (weight: 30%)
     double conflict_score;      // Conflict intensity sub-score (weight: 25%)
@@ -34,6 +32,6 @@ struct RiskScore {
 // Calculates the complete risk assessment for one energy resource
 // Takes the resource and a list of all geopolitical events as input
 // Returns a fully populated RiskScore struct with all sub-scores and final level
-RiskScore calculateRisk(EnergyResource r, vector<GeopoliticalEvent> events);
+RiskScore calculateRisk(const EnergyResource& r, const std::vector<GeopoliticalEvent>& events);
 
 #endif // RISK_ENGINE_H

@@ -138,7 +138,7 @@ static double calcRouteScore(EnergyResource r) {
 // Excludes null sentinels (-1.0) dynamically.
 // Returns a fully populated RiskScore struct.
 // ----------------------------------------------------------------------------
-RiskScore calculateRisk(EnergyResource r, vector<GeopoliticalEvent> events) {
+RiskScore calculateRisk(const EnergyResource& r, const vector<GeopoliticalEvent>& events) {
     RiskScore score;
 
     // Fill in the resource identification fields
