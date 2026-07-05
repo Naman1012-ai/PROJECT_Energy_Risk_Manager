@@ -823,7 +823,11 @@ async function generateRegionInsight(region, forceRefresh = false) {
 const PORT = 3000;
 
 // Path to the compiled C++ executable (relative to this file's location)
-const EXE_PATH = path.join(__dirname, '../backend/build/EnergyRisk.exe');
+const EXE_PATH = path.join(
+    __dirname,
+    "../backend/build",
+    process.platform === "win32" ? "EnergyRisk.exe" : "EnergyRisk"
+);
 
 // Path to the frontend directory
 const FRONTEND_DIR = path.join(__dirname, '../frontend');
