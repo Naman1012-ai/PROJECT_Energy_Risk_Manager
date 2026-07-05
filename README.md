@@ -31,6 +31,35 @@ The primary goals of the platform are:
 
 ---
 
+# Clone Repository
+1. Open terminal
+   
+2. Switch to the directory
+   ```
+   bash
+   cd {folder path}
+   ```
+   
+3. Clone by using
+   ```
+   git clone https://github.com/Naman1012-ai/PROJECT_Energy_Risk_Manager
+   ```
+
+---
+
+# Run Locally
+
+1. Compile (include json_api.cpp)                                                                                
+g++ -o EnergyRisk.exe main.cpp data_loader.cpp risk_engine.cpp features.cpp analysis.cpp display.cpp json_api.cpp -std=c++11
+
+2. Start the web server
+node EnergyRiskMonitor/services/server.js
+
+3. Open browser
+->http://localhost:3000
+
+---
+
 # Key Features
 
 ## 1. Country & Region Intelligence
